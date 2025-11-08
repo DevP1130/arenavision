@@ -1,0 +1,28 @@
+# Core dependencies
+streamlit>=1.28.0
+python-dotenv>=1.0.0
+
+# Google Cloud & AI APIs
+google-cloud-videointelligence>=2.17.0
+google-generativeai>=0.3.0
+google-cloud-aiplatform>=1.38.0
+
+# Video processing
+opencv-python>=4.8.0
+yt-dlp>=2023.10.7
+pytube>=15.0.0
+moviepy>=1.0.3
+pillow>=10.0.0
+
+# Agent framework
+google-cloud-aiplatform[agent-builder]>=1.38.0
+
+# Audio/Text processing
+gtts>=2.4.0
+pydub>=0.25.1
+
+# Utilities
+numpy>=1.24.0
+pandas>=2.0.0
+requests>=2.31.0
+

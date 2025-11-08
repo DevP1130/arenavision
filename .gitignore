@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Environment variables
+.env
+.env.local
+
+# Video files
+uploads/
+outputs/
+temp/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Google Cloud credentials
+*.json
+!package.json
+service-account-key.json
+
+# Jupyter
+.ipynb_checkpoints/
+
