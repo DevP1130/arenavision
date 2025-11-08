@@ -63,10 +63,11 @@ class CommentatorAgent(BaseAgent):
             from config import GOOGLE_API_KEY
             
             if not GOOGLE_API_KEY:
+                event_start = segment.get("event_start", segment.get("start_time", 0))
                 return {
                     "segment_index": index,
                     "text": f"Highlight {index + 1} of {total}",
-                    "timestamp": segment.get("start_time", 0)
+                    "timestamp": event_start
                 }
             
             genai.configure(api_key=GOOGLE_API_KEY)
@@ -89,19 +90,24 @@ class CommentatorAgent(BaseAgent):
             response = model.generate_content(prompt)
             commentary_text = response.text.strip()
             
+            # Use event_start if available (actual play time), otherwise segment start
+            event_start = segment.get("event_start", segment.get("start_time", 0))
+            
             return {
                 "segment_index": index,
                 "text": commentary_text,
-                "timestamp": segment.get("start_time", 0),
+                "timestamp": event_start,  # Time when actual event happens
+                "segment_start": segment.get("start_time", 0),  # Full segment start (with buffer)
                 "duration": segment.get("duration", 10)
             }
             
         except Exception as e:
             self.log(f"Error generating commentary: {e}", "error")
+            event_start = segment.get("event_start", segment.get("start_time", 0))
             return {
                 "segment_index": index,
                 "text": f"Exciting moment {index + 1}!",
-                "timestamp": segment.get("start_time", 0)
+                "timestamp": event_start
             }
     
     def _generate_overall_narration(self, plan: Dict, segments: List[Dict]) -> str:

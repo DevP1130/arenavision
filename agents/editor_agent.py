@@ -28,12 +28,32 @@ class EditorAgent(BaseAgent):
         """
         self.log("Starting video editing", "info")
         
+        # Try multiple paths to get segments
         plan = input_data.get("plan", {})
-        segments = plan.get("segments", [])
-        video_path = input_data.get("metadata", {}).get("video_path")
+        segments = input_data.get("segments", []) or plan.get("segments", [])
         
-        if not video_path or not segments:
-            raise ValueError("Missing video_path or segments")
+        # Try multiple paths to get video_path
+        metadata = input_data.get("metadata", {})
+        video_path = (
+            metadata.get("video_path") or
+            input_data.get("video_path") or
+            input_data.get("input", {}).get("video_path")
+        )
+        
+        if not video_path:
+            self.log(f"Available keys in input_data: {list(input_data.keys())}", "error")
+            self.log(f"Metadata keys: {list(metadata.keys()) if metadata else 'None'}", "error")
+            raise ValueError(f"Missing video_path. Available keys: {list(input_data.keys())}")
+        
+        if not segments:
+            self.log("No segments found - no highlights detected", "warning")
+            # Return empty result instead of error
+            return {
+                "highlight_reel": None,
+                "clips": [],
+                "segment_count": 0,
+                "status": "no_segments"
+            }
         
         # Extract segments from original video
         clips = self._extract_segments(video_path, segments)
@@ -68,8 +88,17 @@ class EditorAgent(BaseAgent):
                 start = segment.get("start_time", 0)
                 end = segment.get("end_time", start + 10)
                 
+                # Ensure we don't exceed video duration
+                video_duration = source_video.duration
+                start = max(0, min(start, video_duration))
+                end = min(end, video_duration)
+                
+                # Ensure end is after start
+                if end <= start:
+                    end = min(start + 5, video_duration)  # Default 5 second clip
+                
                 # MoviePy 2.x uses subclipped instead of subclip
-                clip = source_video.subclipped(start, min(end, source_video.duration))
+                clip = source_video.subclipped(start, end)
                 clip_path = self.output_dir / f"segment_{i:03d}.mp4"
                 
                 clip.write_videofile(
@@ -143,18 +172,107 @@ class EditorAgent(BaseAgent):
             return clips
     
     def _compile_reel(self, clips: List[Path], source_video: str) -> Path:
-        """Compile all clips into final highlight reel."""
-        self.log("Compiling highlight reel", "info")
+        """Compile all clips into final highlight reel with crossfade transitions."""
+        self.log("Compiling highlight reel with crossfade transitions", "info")
         
         try:
-            from moviepy import VideoFileClip, concatenate_videoclips
+            from moviepy import VideoFileClip, CompositeVideoClip, concatenate_videoclips, ColorClip
+            from config import TRANSITION_DURATION
             
             video_clips = [VideoFileClip(str(clip)) for clip in clips]
             
             if not video_clips:
                 raise ValueError("No clips to compile")
             
-            final_reel = concatenate_videoclips(video_clips, method="compose")
+            transition_duration = TRANSITION_DURATION
+            
+            # Create smooth crossfade transitions using overlapping clips with opacity masks
+            if len(video_clips) == 1:
+                final_reel = video_clips[0]
+            else:
+                from moviepy import ImageClip
+                import numpy as np
+                
+                composite_clips = []
+                current_time = 0
+                w, h = video_clips[0].size
+                
+                for i, clip in enumerate(video_clips):
+                    try:
+                        clip_duration = clip.duration
+                        
+                        if i == 0:
+                            # First clip: fade out at end
+                            if clip_duration > transition_duration:
+                                # Create fade out effect by modifying frames
+                                def fadeout_transform(get_frame, t):
+                                    frame = get_frame(t)
+                                    if t < clip_duration - transition_duration:
+                                        return frame  # Full opacity
+                                    else:
+                                        # Fade out: blend with black
+                                        opacity = max(0, (clip_duration - t) / transition_duration)
+                                        return (frame * opacity).astype(np.uint8)
+                                
+                                clip = clip.fl(fadeout_transform)
+                            
+                            clip = clip.set_start(current_time)
+                            composite_clips.append(clip)
+                            current_time += clip_duration - transition_duration / 2
+                        
+                        elif i == len(video_clips) - 1:
+                            # Last clip: fade in at start
+                            if clip_duration > transition_duration:
+                                def fadein_transform(get_frame, t):
+                                    frame = get_frame(t)
+                                    if t > transition_duration:
+                                        return frame  # Full opacity
+                                    else:
+                                        # Fade in: blend with black
+                                        opacity = t / transition_duration
+                                        return (frame * opacity).astype(np.uint8)
+                                
+                                clip = clip.fl(fadein_transform)
+                            
+                            # Overlap with previous clip for crossfade
+                            overlap_start = max(0, current_time - transition_duration)
+                            clip = clip.set_start(overlap_start)
+                            composite_clips.append(clip)
+                        
+                        else:
+                            # Middle clips: fade in at start AND fade out at end
+                            if clip_duration > transition_duration * 2:
+                                def fade_both_transform(get_frame, t):
+                                    frame = get_frame(t)
+                                    if t < transition_duration:
+                                        # Fade in
+                                        opacity = t / transition_duration
+                                    elif t > clip_duration - transition_duration:
+                                        # Fade out
+                                        opacity = max(0, (clip_duration - t) / transition_duration)
+                                    else:
+                                        opacity = 1.0
+                                    return (frame * opacity).astype(np.uint8)
+                                
+                                clip = clip.fl(fade_both_transform)
+                            
+                            # Overlap with previous clip for crossfade
+                            overlap_start = max(0, current_time - transition_duration)
+                            clip = clip.set_start(overlap_start)
+                            composite_clips.append(clip)
+                            current_time = overlap_start + clip_duration - transition_duration / 2
+                    
+                    except Exception as e:
+                        self.log(f"Fade transition error for clip {i}: {e}, using simple positioning", "warning")
+                        # Fallback: simple sequential with slight overlap
+                        clip = clip.set_start(current_time)
+                        composite_clips.append(clip)
+                        current_time += clip.duration - transition_duration / 2
+                
+                # Create composite video with all overlapping faded clips
+                total_duration = max((c.start if hasattr(c, 'start') else 0) + c.duration for c in composite_clips)
+                final_reel = CompositeVideoClip(composite_clips, size=(w, h))
+                final_reel = final_reel.subclipped(0, total_duration)
             output_path = self.output_dir / "highlight_reel.mp4"
             
             final_reel.write_videofile(
@@ -169,10 +287,24 @@ class EditorAgent(BaseAgent):
                 clip.close()
             final_reel.close()
             
-            self.log(f"Highlight reel saved to {output_path}", "info")
+            self.log(f"Highlight reel with transitions saved to {output_path}", "info")
             return output_path
             
         except Exception as e:
-            self.log(f"Error compiling reel: {e}", "error")
-            raise
+            self.log(f"Error compiling reel with transitions: {e}", "error")
+            # Fallback: simple concatenation
+            try:
+                from moviepy import VideoFileClip, concatenate_videoclips
+                video_clips = [VideoFileClip(str(clip)) for clip in clips]
+                final_reel = concatenate_videoclips(video_clips, method="compose")
+                output_path = self.output_dir / "highlight_reel.mp4"
+                final_reel.write_videofile(str(output_path), codec='libx264', audio_codec='aac', fps=30)
+                for clip in video_clips:
+                    clip.close()
+                final_reel.close()
+                self.log("Created reel without transitions (fallback)", "warning")
+                return output_path
+            except Exception as e2:
+                self.log(f"Fallback also failed: {e2}", "error")
+                raise
 

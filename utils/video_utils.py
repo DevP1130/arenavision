@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def sample_key_frames(video_path: str, num_frames: int = 10) -> List[Image.Image]:
+def sample_key_frames(video_path: str, num_frames: int = 10) -> List[tuple]:
     """
     Sample key frames from video for analysis.
     
@@ -18,7 +18,7 @@ def sample_key_frames(video_path: str, num_frames: int = 10) -> List[Image.Image
         num_frames: Number of frames to sample
         
     Returns:
-        List of PIL Images
+        List of tuples: (PIL Image, timestamp_in_seconds, frame_index)
     """
     try:
         cap = cv2.VideoCapture(video_path)
@@ -29,7 +29,15 @@ def sample_key_frames(video_path: str, num_frames: int = 10) -> List[Image.Image
         fps = cap.get(cv2.CAP_PROP_FPS)
         duration = total_frames / fps if fps > 0 else 0
         
-        # Sample frames evenly throughout video
+        if duration == 0:
+            cap.release()
+            return []
+        
+        # Sample frames evenly throughout entire video (not just beginning)
+        # Use more frames for longer videos
+        if duration > 300:  # More than 5 minutes
+            num_frames = max(num_frames, int(duration / 30))  # One frame every 30 seconds
+        
         frame_indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
         
         frames = []
@@ -41,7 +49,8 @@ def sample_key_frames(video_path: str, num_frames: int = 10) -> List[Image.Image
                 # Convert BGR to RGB
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 pil_image = Image.fromarray(frame_rgb)
-                frames.append(pil_image)
+                timestamp = idx / fps if fps > 0 else 0
+                frames.append((pil_image, timestamp, idx))
         
         cap.release()
         return frames

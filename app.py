@@ -1,4 +1,12 @@
 """Streamlit frontend for Game Watcher AI."""
+# Apply Python 3.9 compatibility fix before importing Google Cloud libraries
+import sys
+if sys.version_info < (3, 10):
+    try:
+        import compat_fix  # Apply compatibility shim
+    except ImportError:
+        pass
+
 import streamlit as st
 import logging
 from pathlib import Path
@@ -135,41 +143,34 @@ def process_video(input_source: str, mode: str, fast_mode: bool = False):
         try:
             progress_bar = st.progress(0)
             status_text = st.empty()
-            
-            # Step 1: Input
-            status_text.text("📥 Downloading/loading video...")
-            progress_bar.progress(10)
+            percent_text = st.empty()
             
             # Configure pipeline for fast mode
             if fast_mode:
                 st.session_state.pipeline.vision_agent.use_video_intelligence = False
-                status_text.text("⚡ Fast Mode: Using Gemini Vision only (faster!)")
             else:
                 st.session_state.pipeline.vision_agent.use_video_intelligence = True
-                status_text.text("👁️ Analyzing video content... (Video Intelligence API - may take 1-3 min)")
             
-            progress_bar.progress(30)
+            # Progress callback function
+            def update_progress(percent: int, message: str):
+                """Update progress bar and status text."""
+                progress_bar.progress(percent / 100.0)
+                status_text.text(message)
+                percent_text.markdown(f"**{percent}%**")
             
-            # Step 3: Planning
-            status_text.text("📋 Planning highlights...")
-            progress_bar.progress(50)
-            
-            # Step 4: Editing
-            status_text.text("✂️ Creating highlight reel...")
-            progress_bar.progress(70)
-            
-            # Step 5: Commentary
-            status_text.text("🎙️ Generating commentary...")
-            progress_bar.progress(90)
-            
-            # Run pipeline (actual processing happens here)
-            # Note: Progress bar is approximate - Video Intelligence API is async
+            # Run pipeline with progress callback
             start_time = time.time()
-            results = st.session_state.pipeline.process(input_source, mode=mode)
+            results = st.session_state.pipeline.process(
+                input_source, 
+                mode=mode,
+                progress_callback=update_progress
+            )
             elapsed = time.time() - start_time
             
-            progress_bar.progress(100)
+            # Final update
+            progress_bar.progress(1.0)
             status_text.text(f"✅ Complete! (Took {elapsed:.1f} seconds)")
+            percent_text.markdown("**100%**")
             
             st.session_state.results = results
             st.session_state.processing = False
@@ -188,6 +189,10 @@ def process_video(input_source: str, mode: str, fast_mode: bool = False):
                     """)
                 elif "unable to download" in str(error_msg).lower():
                     st.info("💡 **Tip**: Try using the **Upload Video** option on the right for more reliable processing")
+            elif results.get("status") == "no_highlights":
+                st.warning("⚠️ No highlights detected")
+                st.info(results.get("message", "No highlight-worthy moments found. Try a different video or enable more detection features."))
+                st.info("💡 **Tips**: Try disabling Fast Mode to use Video Intelligence API, or use a video with more clear scoring plays.")
             else:
                 st.success(f"Processing complete! Took {elapsed:.1f} seconds. Scroll down to see results.")
                 

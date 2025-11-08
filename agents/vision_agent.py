@@ -1,7 +1,16 @@
 """Vision Agent - analyzes video using Google Video Intelligence and Gemini Vision."""
+# Apply Python 3.9 compatibility fix before importing Google Cloud libraries
+import sys
+if sys.version_info < (3, 10):
+    try:
+        import compat_fix  # Apply compatibility shim
+    except ImportError:
+        pass  # If compat_fix not found, continue anyway
+
 from typing import Dict, List, Optional, Union
 from pathlib import Path
 import logging
+import re
 from .base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -62,14 +71,36 @@ class VisionAgent(BaseAgent):
         
         try:
             from google.cloud import videointelligence_v1 as vi
+            from google.oauth2 import service_account
             from utils.video_utils import get_video_info
+            from config import GOOGLE_APPLICATION_CREDENTIALS, GOOGLE_CLOUD_PROJECT
+            import os
             
             # Check video duration - use faster features for short videos
             video_info = get_video_info(video_path)
             duration = video_info.get("duration", 0)
             is_short_video = duration < 180  # Less than 3 minutes
             
-            client = vi.VideoIntelligenceServiceClient()
+            # Set up credentials explicitly
+            credentials = None
+            if GOOGLE_APPLICATION_CREDENTIALS:
+                creds_path = GOOGLE_APPLICATION_CREDENTIALS
+                # Handle relative paths
+                if not os.path.isabs(creds_path):
+                    creds_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), creds_path)
+                
+                if os.path.exists(creds_path):
+                    credentials = service_account.Credentials.from_service_account_file(creds_path)
+                    self.log(f"Using credentials from: {creds_path}", "info")
+                else:
+                    self.log(f"Credentials file not found: {creds_path}", "warning")
+            
+            # Create client with explicit credentials if available
+            if credentials:
+                client = vi.VideoIntelligenceServiceClient(credentials=credentials)
+            else:
+                # Try default credentials (from environment)
+                client = vi.VideoIntelligenceServiceClient()
             
             # For short videos, use fewer features for faster processing
             if is_short_video:
@@ -176,42 +207,101 @@ class VisionAgent(BaseAgent):
             # For uploaded/YouTube videos, analyze sampled frames
             from utils.video_utils import sample_key_frames, get_video_info
             
-            # Adjust number of frames based on video length
+            # Adjust number of frames based on video length - sample throughout entire video
             video_info = get_video_info(video_path)
             duration = video_info.get("duration", 0)
             
-            # Use fewer frames for shorter videos (faster processing)
+            # Sample more frames for longer videos to cover entire video
             if duration < 120:  # Less than 2 minutes
-                num_frames = 5
-            elif duration < 300:  # Less than 5 minutes
-                num_frames = 8
-            else:
                 num_frames = 10
+            elif duration < 300:  # Less than 5 minutes
+                num_frames = 20
+            elif duration < 600:  # Less than 10 minutes
+                num_frames = 30
+            else:
+                num_frames = 40  # For very long videos
             
-            frames = sample_key_frames(video_path, num_frames=num_frames)
+            frames_data = sample_key_frames(video_path, num_frames=num_frames)
             
             events = []
-            for i, frame in enumerate(frames):
+            for frame_image, timestamp, frame_idx in frames_data:
                 prompt = """
                 Analyze this sports frame and identify:
                 1. What sport is being played?
-                2. Any significant action (goal, score, tackle, catch, etc.)?
-                3. Player positions and movements
-                4. Crowd reaction level (0-10)
-                5. Is this a highlight-worthy moment? (yes/no)
+                2. Is there a shot attempt (basketball), goal attempt (soccer), or scoring play?
+                3. Was the shot/goal SUCCESSFUL (made basket, goal scored) or MISSED (ball missed, shot blocked)?
+                4. Can you see a player preparing to shoot/score (player with ball, shooting motion, etc.)?
+                5. Player positions and movements
+                6. Crowd reaction level (0-10) - higher means more excitement
+                7. Is this a highlight-worthy moment? (yes/no)
                 
-                Respond in JSON format.
+                IMPORTANT: 
+                - Only mark as highlight if the shot/goal was SUCCESSFUL
+                - If you see a successful score, also note if you can see the player shooting/scoring
+                - Missed shots should NOT be highlights
+                
+                Respond in this exact JSON format:
+                {
+                    "sport": "basketball/soccer/etc",
+                    "action": "shot/goal/tackle/etc",
+                    "successful": true/false,
+                    "player_visible": true/false,
+                    "crowd_reaction": 0-10,
+                    "is_highlight": true/false
+                }
                 """
                 
-                response = model.generate_content([prompt, frame])
+                response = model.generate_content([prompt, frame_image])
+                response_text = response.text.strip()
                 
-                # Parse response (simplified)
-                events.append({
-                    "frame_index": i,
-                    "timestamp": i * 3,  # Approximate timestamp
-                    "analysis": response.text,
-                    "is_highlight": "highlight" in response.text.lower()
-                })
+                # Parse response to check for successful plays
+                is_successful = False
+                is_highlight = False
+                crowd_reaction = 0
+                
+                # Check for successful indicators
+                if any(word in response_text.lower() for word in ["successful", "made", "scored", "goal", "basket", "point"]):
+                    if not any(word in response_text.lower() for word in ["missed", "blocked", "failed", "unsuccessful"]):
+                        is_successful = True
+                
+                # Check if player is visible (for extending segment to show shooter)
+                player_visible = any(word in response_text.lower() for word in [
+                    "player", "shooting", "shooter", "with ball", "preparing", "taking shot"
+                ])
+                
+                # Check for highlight indicators
+                if "highlight" in response_text.lower() or "highlight-worthy" in response_text.lower():
+                    is_highlight = True
+                
+                # Extract crowd reaction if mentioned
+                crowd_match = re.search(r'crowd[_\s]*reaction[:\s]*(\d+)', response_text.lower())
+                if crowd_match:
+                    crowd_reaction = int(crowd_match.group(1))
+                elif "crowd" in response_text.lower() and any(word in response_text.lower() for word in ["cheer", "excit", "loud"]):
+                    crowd_reaction = 7
+                
+                # Be very lenient - include ANY frame that might have action
+                # Check if there's any sports action at all
+                has_action = any(word in response_text.lower() for word in [
+                    "sport", "basketball", "soccer", "football", "player", "ball", 
+                    "shot", "goal", "score", "play", "game", "court", "field"
+                ])
+                
+                # Include if it's a highlight, successful, has crowd reaction, OR has any sports action
+                if is_highlight or is_successful or crowd_reaction >= 3 or has_action:
+                    events.append({
+                        "frame_index": frame_idx,
+                        "timestamp": timestamp,  # Actual timestamp from video
+                        "analysis": response_text,
+                        "is_highlight": is_highlight or is_successful,
+                        "is_successful": is_successful,
+                        "player_visible": player_visible,
+                        "crowd_reaction": crowd_reaction,
+                        "has_action": has_action,
+                        "confidence": max(crowd_reaction / 10.0, 0.4 if has_action else 0.3)  # Use crowd reaction as confidence
+                    })
+            
+            self.log(f"Gemini Vision detected {len(events)} events", "info")
             
             return {
                 "gemini_vision": {
