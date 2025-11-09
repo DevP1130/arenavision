@@ -43,10 +43,16 @@ if "current_iteration" not in st.session_state:
     st.session_state.current_iteration = 0  # Index in iterations list
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "editor"  # "editor" or "next_page"
 
 
 def main():
     """Main Streamlit app."""
+    # Check if we should show the next page
+    if st.session_state.get("current_page") == "next_page":
+        show_next_page()
+        return
     st.title("🎥 Game Watcher AI")
     st.markdown("**Intelligent sports highlight generation with agentic AI**")
     
@@ -304,19 +310,14 @@ def display_results(results: dict):
         else:
             st.warning("No video available")
         
-        # Download button for current iteration
+        # Continue button to go to next page
         if iterations:
             current_iter = iterations[st.session_state.current_iteration] if st.session_state.current_iteration < len(iterations) else iterations[0]
             if current_iter and Path(current_iter["video_path"]).exists():
-                st.subheader("📥 Download")
-                with open(current_iter["video_path"], "rb") as f:
-                    st.download_button(
-                        label=f"📥 Download Current Iteration ({st.session_state.current_iteration + 1})",
-                        data=f.read(),
-                        file_name=f"highlight_reel_iteration_{current_iter['iteration_num']:03d}.mp4",
-                        mime="video/mp4",
-                        key="download_current_iteration"
-                    )
+                st.subheader("➡️ Continue")
+                if st.button("Continue", type="primary", key="continue_button"):
+                    st.session_state.current_page = "next_page"
+                    st.rerun()
     
     with col_chat:
         st.subheader("🤖 Video Editing Chatbot")
@@ -536,6 +537,17 @@ def display_results(results: dict):
     # Detailed results (expandable)
     with st.expander("🔍 Detailed Results"):
         st.json(results)
+
+
+def show_next_page():
+    """Show the next page (empty for now)."""
+    st.title("Next Page")
+    st.write("This page is empty for now.")
+    
+    # Back button to return to editor
+    if st.button("← Back to Editor"):
+        st.session_state.current_page = "editor"
+        st.rerun()
 
 
 if __name__ == "__main__":
