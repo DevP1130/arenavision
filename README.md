@@ -23,16 +23,16 @@ Watch the full demonstration: [ArenaVision Demo](https://www.youtube.com/watch?v
 ## 🖼️ Screenshots
 
 ### Main Interface - Video Input & Processing
-![Main Interface](https://via.placeholder.com/800x600/1a1a2e/ffffff?text=ArenaVision+Main+Interface)
-*Input YouTube URLs or upload videos, select processing options, and view results*
+![Main Interface](./screencapture-localhost-8501-2025-11-09-11_13_39.png)
+*Primary screen showing video input options and processing controls*
 
 ### Individual Video Segments
-![Video Segments](https://via.placeholder.com/800x600/1a1a2e/ffffff?text=Individual+Video+Segments)
+![Video Segments](./screencapture-localhost-8501-2025-11-09-11_15_47.png)
 *View and download individual highlight segments with descriptions and timestamps*
 
 ### Interactive Video Editor
-![Video Editor](https://via.placeholder.com/800x600/1a1a2e/ffffff?text=Interactive+Video+Editor)
-*Iterative editing with chatbot assistance - remove segments, trim clips, and refine highlights*
+![Video Editor](./screencapture-localhost-8501-2025-11-09-11_11_32.png)
+*Iterative editing with chatbot assistance — remove segments, trim clips, and refine highlights*
 
 ### Logo & Intro Video Generation
 ![Logo & Intro](https://via.placeholder.com/800x600/1a1a2e/ffffff?text=Logo+and+Intro+Generation)
