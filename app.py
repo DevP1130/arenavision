@@ -883,6 +883,13 @@ def show_final_page():
     st.title("✅ Final Video")
     st.markdown("Review your final video and post it to X (Twitter) if you want.")
 
+    # Navigation: Back to previous screen (Logo/Intro page)
+    nav_col, _ = st.columns([1, 8])
+    with nav_col:
+        if st.button("← Back", key="back_to_previous_final"):
+            st.session_state.current_page = "next_page"  # Go back to the previous (branding) step
+            st.rerun()
+
     # Determine which video to show on the final page.
     # New priority: latest editor iteration (current or last) -> selected intro video -> pipeline highlight reel
     video_path = None
@@ -925,7 +932,12 @@ def show_final_page():
 
     if video_path is None:
         st.error("Final video not found. Go back and generate or select a video first.")
-        if st.button("← Back to Editor"):
+        # Offer quick navigation back to branding step to resolve missing video
+        if st.button("← Back to Branding", key="back_no_video_branding"):
+            st.session_state.current_page = "next_page"
+            st.rerun()
+        # Also allow going straight back to Editor if desired
+        if st.button("← Back to Editor", key="back_no_video_editor"):
             st.session_state.current_page = "editor"
             st.rerun()
         return
@@ -937,11 +949,12 @@ def show_final_page():
         selected_logo = st.session_state.get("selected_image")
         if selected_logo and selected_logo.get("image_path") and Path(selected_logo["image_path"]).exists():
             from utils.video_utils import overlay_logo_on_video
+            # Fixed smaller size (no sliders)
             overlay_candidate = overlay_logo_on_video(
                 video_path=video_path,
                 logo_path=Path(selected_logo["image_path"]),
                 position=("right", "bottom"),
-                scale=0.15,
+                scale=0.10,  # smaller than previous 0.15
                 margin=30,
             )
     except Exception:
