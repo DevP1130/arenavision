@@ -49,6 +49,8 @@ if "skip_logo" not in st.session_state:
     st.session_state.skip_logo = False
 if "skip_intro" not in st.session_state:
     st.session_state.skip_intro = False
+if "show_landing" not in st.session_state:
+    st.session_state.show_landing = True
 
 # Sidebar brand/logo (attempt background removal of white)
 def _sidebar_brand_logo():
@@ -79,8 +81,481 @@ def _sidebar_brand_logo():
         st.sidebar.image(str(logo_path), use_container_width=True)
 
 
+def show_landing_page():
+    """Show the landing/welcome page with camera flash animation."""
+    # Hide default Streamlit elements
+    hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stApp {
+        background: #000000;
+    }
+    </style>
+    """
+    st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+    
+    # Camera flash animation CSS
+    st.markdown("""
+    <style>
+    @keyframes ballBounce {
+        0% {
+            opacity: 0;
+            transform: translate(-50%, -200%) scale(0.5);
+        }
+        20% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        40% {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        45% {
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+        50% {
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+        55% {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        100% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+    }
+    
+    @keyframes footballBounce {
+        0% {
+            opacity: 0;
+            transform: translate(-60%, -200%) scale(0.5) rotate(0deg);
+        }
+        20% {
+            opacity: 1;
+            transform: translate(-60%, -50%) scale(1) rotate(180deg);
+        }
+        40% {
+            transform: translate(-60%, -50%) scale(1) rotate(360deg);
+        }
+        45% {
+            transform: translate(-60%, -50%) scale(0.9) rotate(380deg);
+        }
+        50% {
+            transform: translate(-60%, -50%) scale(1.1) rotate(360deg);
+        }
+        55% {
+            transform: translate(-60%, -50%) scale(1) rotate(340deg);
+        }
+        100% {
+            opacity: 0;
+            transform: translate(-60%, -50%) scale(0.8) rotate(180deg);
+        }
+    }
+    
+    @keyframes basketballBounce {
+        0% {
+            opacity: 0;
+            transform: translate(-40%, -200%) scale(0.5);
+        }
+        20% {
+            opacity: 1;
+            transform: translate(-40%, -50%) scale(1);
+        }
+        40% {
+            transform: translate(-40%, -50%) scale(1);
+        }
+        45% {
+            transform: translate(-40%, -50%) scale(0.9);
+        }
+        50% {
+            transform: translate(-40%, -50%) scale(1.1);
+        }
+        55% {
+            transform: translate(-40%, -50%) scale(1);
+        }
+        100% {
+            opacity: 0;
+            transform: translate(-40%, -50%) scale(0.8);
+        }
+    }
+    
+    @keyframes stadiumLights {
+        0% {
+            opacity: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0) 0%, rgba(139, 92, 246, 0) 100%);
+        }
+        20% {
+            opacity: 0.3;
+            background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0) 70%);
+        }
+        40% {
+            opacity: 0.6;
+            background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.6) 0%, rgba(255, 255, 255, 0.4) 30%, rgba(139, 92, 246, 0) 70%);
+        }
+        45% {
+            opacity: 0.8;
+            background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.8) 0%, rgba(255, 255, 255, 0.6) 30%, rgba(139, 92, 246, 0) 70%);
+        }
+        50% {
+            opacity: 1;
+            background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 1) 0%, rgba(255, 255, 255, 0.8) 30%, rgba(139, 92, 246, 0) 70%);
+        }
+        55% {
+            opacity: 0.8;
+            background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.8) 0%, rgba(255, 255, 255, 0.6) 30%, rgba(139, 92, 246, 0) 70%);
+        }
+        60% {
+            opacity: 0.4;
+            background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.4) 0%, rgba(139, 92, 246, 0) 70%);
+        }
+        100% {
+            opacity: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0) 0%, rgba(139, 92, 246, 0) 100%);
+        }
+    }
+    
+    @keyframes actionLines {
+        0% {
+            opacity: 0;
+            transform: translateX(-100px) scaleX(0);
+        }
+        40% {
+            opacity: 0;
+            transform: translateX(-100px) scaleX(0);
+        }
+        45% {
+            opacity: 0.8;
+            transform: translateX(0) scaleX(1);
+        }
+        55% {
+            opacity: 0.8;
+            transform: translateX(0) scaleX(1);
+        }
+        60% {
+            opacity: 0;
+            transform: translateX(100px) scaleX(0);
+        }
+        100% {
+            opacity: 0;
+            transform: translateX(100px) scaleX(0);
+        }
+    }
+    
+    @keyframes logoFadeIn {
+        0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+        45% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+        50% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.05);
+        }
+        55% {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        100% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+    }
+    
+    @keyframes buttonFadeIn {
+        0% {
+            opacity: 0;
+        }
+        60% {
+            opacity: 0;
+        }
+        100% {
+            opacity: 1;
+        }
+    }
+    
+    .sports-ball {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 100px;
+        z-index: 9998;
+        animation: ballBounce 3s ease-out forwards;
+        opacity: 0;
+    }
+    
+    .football-ball {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 100px;
+        z-index: 9997;
+        animation: footballBounce 3s ease-out forwards;
+        opacity: 0;
+    }
+    
+    .basketball-ball {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 100px;
+        z-index: 9996;
+        animation: basketballBounce 3s ease-out forwards;
+        opacity: 0;
+    }
+    
+    .stadium-lights {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 9999;
+        animation: stadiumLights 3s ease-out forwards;
+        pointer-events: none;
+    }
+    
+    .action-lines {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 400px;
+        height: 4px;
+        background: linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.8) 50%, transparent 100%);
+        z-index: 9997;
+        animation: actionLines 3s ease-out forwards;
+        opacity: 0;
+    }
+    
+    .action-lines::before,
+    .action-lines::after {
+        content: '';
+        position: absolute;
+        width: 300px;
+        height: 2px;
+        background: linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.6) 50%, transparent 100%);
+    }
+    
+    .action-lines::before {
+        top: -30px;
+        left: 50px;
+    }
+    
+    .action-lines::after {
+        bottom: -30px;
+        right: 50px;
+    }
+    
+    .arena-vision-logo {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 120px;
+        font-weight: 900;
+        text-align: center;
+        z-index: 10000;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        letter-spacing: 8px;
+        animation: logoFadeIn 3s ease-out forwards;
+        opacity: 0;
+    }
+    
+    .arena-text {
+        color: #8B5CF6;
+        text-shadow: 0 0 30px rgba(139, 92, 246, 0.8), 0 0 60px rgba(139, 92, 246, 0.5);
+    }
+    
+    .vision-text {
+        color: #FFFFFF;
+        text-shadow: 0 0 30px rgba(255, 255, 255, 0.5), 0 0 60px rgba(255, 255, 255, 0.3);
+    }
+    
+    .landing-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #000000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .begin-button-wrapper {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, 0%);
+        margin-top: 180px;
+        z-index: 10001;
+        opacity: 0;
+        animation: buttonFadeIn 3s ease-out forwards;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # HTML for sports animation and logo with clickable overlay
+    st.markdown("""
+    <div class="landing-container" id="landing-container" style="cursor: pointer;">
+        <div class="action-lines"></div>
+        <div class="sports-ball">⚽</div>
+        <div class="football-ball">🏈</div>
+        <div class="basketball-ball">🏀</div>
+        <div class="stadium-lights"></div>
+        <div class="arena-vision-logo"><span class="arena-text">ARENA</span><span class="vision-text">VISION</span></div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Style for the Begin button
+    st.markdown("""
+    <style>
+    /* Hide sidebar and header buttons */
+    [data-testid="stSidebar"] button,
+    header button {
+        display: none !important;
+    }
+    
+    .begin-button-container {
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 10001 !important;
+        opacity: 0;
+        animation: buttonFadeIn 3s ease-out forwards;
+        text-align: center !important;
+        width: auto !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
+    
+    /* Center Streamlit button wrapper - remove any background/border */
+    .begin-button-container > div,
+    .begin-button-container [data-testid="baseButton-secondary"],
+    .begin-button-container [data-testid="stButton"] {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        margin: 0 auto !important;
+        width: auto !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+    }
+    
+    .begin-button-container button,
+    button[key="begin_button"] {
+        background-color: transparent !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        font-size: 36px !important;
+        font-weight: 600 !important;
+        padding: 12px 40px !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+        letter-spacing: 4px !important;
+        text-shadow: 0 0 20px rgba(255, 255, 255, 0.5), 0 0 40px rgba(255, 255, 255, 0.3) !important;
+        cursor: pointer !important;
+        transition: all 0.3s ease !important;
+        box-shadow: none !important;
+        display: block !important;
+        margin: 0 auto !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        left: auto !important;
+        right: auto !important;
+    }
+    
+    .begin-button-container button:hover,
+    button[key="begin_button"]:hover {
+        transform: scale(1.05) !important;
+        text-shadow: 0 0 30px rgba(255, 255, 255, 0.7), 0 0 60px rgba(255, 255, 255, 0.5) !important;
+        background-color: transparent !important;
+        color: #FFFFFF !important;
+    }
+    
+    .begin-button-container button:active,
+    button[key="begin_button"]:active {
+        transform: scale(0.98) !important;
+        color: #FFFFFF !important;
+    }
+    </style>
+    <div class="begin-button-container">
+    """, unsafe_allow_html=True)
+    
+    # Check if we should navigate (from query param or button click)
+    query_params = st.query_params
+    if query_params.get("begin") == "true":
+        st.session_state.show_landing = False
+        st.query_params.clear()
+        st.rerun()
+    
+    # Begin button
+    if st.button("Begin", key="begin_button", use_container_width=False):
+        st.session_state.show_landing = False
+        st.rerun()
+    
+    # Add JavaScript to make entire page clickable
+    st.markdown("""
+    <script>
+    (function() {
+        function setupClickHandler() {
+            const landingContainer = document.getElementById('landing-container');
+            if (landingContainer) {
+                landingContainer.style.cursor = 'pointer';
+                landingContainer.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Navigate with query parameter
+                    const currentUrl = window.location.href;
+                    const separator = currentUrl.includes('?') ? '&' : '?';
+                    window.location.href = currentUrl + separator + 'begin=true';
+                });
+            }
+        }
+        
+        // Wait for DOM to be ready
+        function init() {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(setupClickHandler, 300);
+                });
+            } else {
+                setTimeout(setupClickHandler, 300);
+            }
+        }
+        
+        init();
+        // Retry after Streamlit renders
+        setTimeout(setupClickHandler, 1000);
+    })();
+    </script>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def main():
     """Main Streamlit app."""
+    # Show landing page first
+    if st.session_state.show_landing:
+        show_landing_page()
+        return
+    
     # Check if we should show the next/final page
     if st.session_state.get("current_page") == "next_page":
         show_next_page()
@@ -88,21 +563,372 @@ def main():
     if st.session_state.get("current_page") == "final":
         show_final_page()
         return
+    
+    # Add modern styling and animations
+    st.markdown("""
+    <style>
+    /* Modern Sports Theme Styling */
+    @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Bebas+Neue&family=Montserrat:wght@400;500;600;700;800&display=swap');
+    
+    /* Global Styles */
+    .stApp {
+        font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+    }
+    
+    /* Animated background particles */
+    .stApp::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: 
+            radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(255, 100, 0, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 20%, rgba(0, 255, 150, 0.05) 0%, transparent 50%);
+        animation: particleFloat 20s ease-in-out infinite;
+        pointer-events: none;
+        z-index: 0;
+    }
+    
+    @keyframes particleFloat {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(20px, -20px) scale(1.1); }
+    }
+    
+    /* Title Styling */
+    h1 {
+        font-family: 'Oswald', sans-serif !important;
+        font-size: 3rem !important;
+        font-weight: 700 !important;
+        margin-bottom: 0.5rem !important;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+    
+    h1 .arena-text {
+        color: #8B5CF6 !important;
+        background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.5));
+    }
+    
+    h1 .vision-text {
+        color: #ffffff !important;
+        background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+    }
+    
+    @keyframes titleGlow {
+        0%, 100% { filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.5)); }
+        50% { filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.7)); }
+    }
+    
+    h1 .arena-text {
+        animation: titleGlow 3s ease-in-out infinite;
+    }
+    
+    /* Subtitle */
+    .main-subtitle {
+        font-size: 1.1rem;
+        color: #b0b0b0;
+        font-weight: 400;
+        margin-bottom: 2rem;
+        letter-spacing: 0.01em;
+    }
+    
+    /* Sidebar Styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0f0f0f 0%, #1a1a2e 100%);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    [data-testid="stSidebar"] .stMarkdown h2 {
+        font-family: 'Oswald', sans-serif !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        color: #ffffff !important;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-top: 1.5rem !important;
+        margin-bottom: 0.75rem !important;
+        padding-bottom: 0.5rem;
+        padding-left: 2rem !important;
+        position: relative;
+        border-bottom: 2px solid rgba(139, 92, 246, 0.3);
+    }
+    
+    [data-testid="stSidebar"] .stMarkdown h2::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 4px;
+        background: linear-gradient(180deg, #8B5CF6 0%, #A78BFA 100%);
+        border-radius: 2px;
+    }
+    
+    /* Radio buttons with hover effect */
+    [data-testid="stSidebar"] label {
+        transition: all 0.3s ease;
+        border-radius: 8px;
+        padding: 0.5rem;
+    }
+    
+    [data-testid="stSidebar"] label:hover {
+        background: rgba(139, 92, 246, 0.1);
+        transform: translateX(5px);
+    }
+    
+    /* Checkbox styling */
+    [data-testid="stSidebar"] .stCheckbox label {
+        color: #e0e0e0;
+        font-weight: 500;
+    }
+    
+    /* Header Styling */
+    h2 {
+        font-family: 'Oswald', sans-serif !important;
+        font-size: 1.8rem !important;
+        font-weight: 600 !important;
+        color: #ffffff !important;
+        margin-top: 2rem !important;
+        margin-bottom: 1rem !important;
+        position: relative;
+        padding-left: 2.5rem !important;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+    
+    h2::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 4px;
+        background: linear-gradient(180deg, #8B5CF6 0%, #A78BFA 100%);
+        border-radius: 2px;
+    }
+    
+    /* Subheader */
+    h3 {
+        font-family: 'Oswald', sans-serif !important;
+        font-size: 1.3rem !important;
+        font-weight: 500 !important;
+        color: #d0d0d0 !important;
+        margin-top: 1.5rem !important;
+        margin-bottom: 0.75rem !important;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+    }
+    
+    /* File Uploader - reduced height */
+    [data-testid="stFileUploader"] > div {
+        min-height: 80px !important;
+        height: 80px !important;
+    }
+    
+    [data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
+        min-height: 80px !important;
+        height: 80px !important;
+    }
+    
+    /* Input Fields - match file uploader height exactly */
+    .stTextInput > div > div > input {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        color: #ffffff !important;
+        padding: 0.75rem 1rem !important;
+        transition: all 0.3s ease !important;
+        min-height: 80px !important;
+        height: 80px !important;
+    }
+    
+    /* Make text input container match file uploader height */
+    .stTextInput > div {
+        min-height: 80px !important;
+        height: 80px !important;
+    }
+    
+    .stTextInput > div > div {
+        min-height: 80px !important;
+        height: 80px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: #8B5CF6 !important;
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2) !important;
+        outline: none !important;
+    }
+    
+    /* File Uploader */
+    .uploadedFile {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 2px dashed rgba(255, 255, 255, 0.2) !important;
+        border-radius: 12px !important;
+        padding: 2rem !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .uploadedFile:hover {
+        border-color: #8B5CF6 !important;
+        background: rgba(139, 92, 246, 0.05) !important;
+        transform: translateY(-2px);
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 2rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3) !important;
+        position: relative;
+        overflow: hidden;
+        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .stButton > button::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4) !important;
+    }
+    
+    .stButton > button:hover::before {
+        width: 300px;
+        height: 300px;
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0) !important;
+    }
+    
+    /* Slider */
+    .stSlider {
+        margin: 1rem 0;
+    }
+    
+    .stSlider > div > div {
+        background: rgba(255, 255, 255, 0.1) !important;
+    }
+    
+    .stSlider > div > div > div {
+        background: linear-gradient(90deg, #8B5CF6 0%, #A78BFA 100%) !important;
+    }
+    
+    /* Info boxes */
+    .stInfo {
+        background: rgba(139, 92, 246, 0.1) !important;
+        border-left: 4px solid #8B5CF6 !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+    }
+    
+    /* Columns with animation */
+    [data-testid="column"] {
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Progress bar styling */
+    .stProgress {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+    }
+    
+    .stProgress > div {
+        background: #6D28D9 !important;
+        border-radius: 10px !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .stProgress > div > div {
+        background: #6D28D9 !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .stProgress > div > div > div {
+        background: #A78BFA !important;
+        background-size: 200% 100% !important;
+        animation: progressShimmer 2s linear infinite !important;
+        border: none !important;
+    }
+    
+    @keyframes progressShimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    
+    /* Hide Streamlit default elements */
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header { visibility: hidden; }
+    </style>
+    """, unsafe_allow_html=True)
+    
     _sidebar_brand_logo()
-    # Plain title and subtitle (logo removed from header)
-    st.title("🎥 ArenaVision")
-    st.markdown("**Intelligent sports highlight generation with agentic AI**")
+    
+    # Modern title with ARENA in purple
+    st.markdown('<h1><span class="arena-text">ARENA</span><span class="vision-text">VISION</span></h1>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Intelligent sports highlight generation with agentic AI</p>', unsafe_allow_html=True)
     
     # Sidebar for mode selection
-    st.sidebar.header("⚙️ Input Mode")
+    st.sidebar.header("Input Mode")
     input_mode = st.sidebar.radio(
         "Select input source:",
-        ["🎥 YouTube / Upload", "📡 Live Stream"],
+        ["YouTube / Upload", "Live Stream"],
         help="Choose how to provide video input"
     )
     
     # Fast mode option
-    st.sidebar.header("⚡ Processing Options")
+    st.sidebar.header("Processing Options")
     fast_mode = st.sidebar.checkbox(
         "Fast Mode (Skip Video Intelligence API)",
         value=False,
@@ -110,7 +936,7 @@ def main():
     )
     
     # Main content area
-    if input_mode == "🎥 YouTube / Upload":
+    if input_mode == "YouTube / Upload":
         youtube_upload_mode(fast_mode)
     else:
         live_stream_mode()
@@ -122,7 +948,7 @@ def main():
 
 def youtube_upload_mode(fast_mode: bool = False):
     """YouTube/Upload input mode."""
-    st.header("📹 Video Input")
+    st.header("Video Input")
     
     col1, col2 = st.columns(2)
     
@@ -160,7 +986,7 @@ def youtube_upload_mode(fast_mode: bool = False):
 
 def live_stream_mode():
     """Live stream input mode."""
-    st.header("📡 Live Stream Input")
+    st.header("Live Stream Input")
     
     stream_url = st.text_input(
         "Enter stream URL:",
@@ -184,7 +1010,7 @@ def live_stream_mode():
             st.error("Please enter a stream URL")
     
     # Simulate live mode option
-    st.info("💡 **Tip**: For demo purposes, you can use a prerecorded video and process it frame-by-frame to simulate live mode.")
+    st.info("**Tip**: For demo purposes, you can use a prerecorded video and process it frame-by-frame to simulate live mode.")
 
 
 def process_video(input_source: str, mode: str, fast_mode: bool = False):
@@ -226,7 +1052,7 @@ def process_video(input_source: str, mode: str, fast_mode: bool = False):
             
             # Final update
             progress_bar.progress(1.0)
-            status_text.text(f"✅ Complete! (Took {elapsed:.1f} seconds)")
+            status_text.text(f"Complete! (Took {elapsed:.1f} seconds)")
             percent_text.markdown("**100%**")
             
             st.session_state.results = results
@@ -245,11 +1071,11 @@ def process_video(input_source: str, mode: str, fast_mode: bool = False):
                     - For hackathon demos, uploading a local video file is more reliable
                     """)
                 elif "unable to download" in str(error_msg).lower():
-                    st.info("💡 **Tip**: Try using the **Upload Video** option on the right for more reliable processing")
+                    st.info("**Tip**: Try using the **Upload Video** option on the right for more reliable processing")
             elif results.get("status") == "no_highlights":
-                st.warning("⚠️ No highlights detected")
+                st.warning("No highlights detected")
                 st.info(results.get("message", "No highlight-worthy moments found. Try a different video or enable more detection features."))
-                st.info("💡 **Tips**: Try disabling Fast Mode to use Video Intelligence API, or use a video with more clear scoring plays.")
+                st.info("**Tips**: Try disabling Fast Mode to use Video Intelligence API, or use a video with more clear scoring plays.")
             else:
                 st.success(f"Processing complete! Took {elapsed:.1f} seconds. Scroll down to see results.")
                 
@@ -288,7 +1114,7 @@ def display_results(results: dict):
         st.warning("No highlight reel available yet. Please process a video first.")
         return
     
-    st.header("📊 Results")
+    st.header("Results")
     
     summary = results.get("summary", {})
     
@@ -298,7 +1124,7 @@ def display_results(results: dict):
     with col2:
         st.metric("Total Duration", f"{summary.get('total_duration', 0):.1f}s")
     with col3:
-        st.metric("Status", "✅ Complete")
+        st.metric("Status", "Complete")
     
     # Initialize iterations with original highlight reel (only once)
     if highlight_reel and Path(highlight_reel).exists() and len(st.session_state.iterations) == 0:
@@ -314,7 +1140,7 @@ def display_results(results: dict):
     col_video, col_chat = st.columns([2, 1])
     
     with col_video:
-        st.subheader("🎬 Highlight Reel Editor")
+        st.subheader("Highlight Reel Editor")
         
         # Iteration navigation (slideshow)
         iterations = st.session_state.iterations
@@ -351,16 +1177,16 @@ def display_results(results: dict):
         if iterations:
             current_iter = iterations[st.session_state.current_iteration] if st.session_state.current_iteration < len(iterations) else iterations[0]
             if current_iter and Path(current_iter["video_path"]).exists():
-                st.subheader("➡️ Continue")
+                st.subheader("Continue")
                 if st.button("Continue", type="primary", key="continue_button"):
                     st.session_state.current_page = "next_page"
                     st.rerun()
     
     with col_chat:
-        st.subheader("🤖 Video Editing Chatbot")
+        st.subheader("Video Editing Chatbot")
         
         # Show video context info
-        with st.expander("📋 Video Context", expanded=False):
+        with st.expander("Video Context", expanded=False):
             st.write("**Available Data:**")
             vision_data = results.get("vision", {})
             planner_data = results.get("planner", {})
@@ -389,9 +1215,9 @@ def display_results(results: dict):
                 role = msg.get("role", "user")
                 content = msg.get("content", "")[:100]
                 if role == "user":
-                    st.write(f"👤 **You:** {content}...")
+                    st.write(f"**You:** {content}...")
                 else:
-                    st.write(f"🤖 **Bot:** {content}...")
+                    st.write(f"**Bot:** {content}...")
         
         # Chat input
         user_message = st.text_area(
@@ -521,7 +1347,7 @@ def display_results(results: dict):
     commentaries = results.get("commentaries", [])
     
     if clips:
-        st.subheader("📹 Individual Video Segments")
+        st.subheader("Individual Video Segments")
         st.write("View and download individual highlight segments:")
         
         # Display clips in a grid
@@ -548,7 +1374,7 @@ def display_results(results: dict):
                             # Download button for each clip
                             with open(clip_path, "rb") as f:
                                 st.download_button(
-                                    label=f"📥 Download Segment {clip_idx + 1}",
+                                    label=f"Download Segment {clip_idx + 1}",
                                     data=f.read(),
                                     file_name=clip_name,
                                     mime="video/mp4",
@@ -557,28 +1383,288 @@ def display_results(results: dict):
                         else:
                             st.warning(f"Clip {clip_idx + 1} not found")
     
-    # Commentary audio (below clips)
-    commentary_audio = results.get("commentary_audio")
-    if commentary_audio and Path(commentary_audio).exists():
-        st.subheader("🔊 Commentary Audio")
-        st.audio(commentary_audio)
-        
-        with open(commentary_audio, "rb") as f:
-            st.download_button(
-                label="📥 Download Audio",
-                data=f.read(),
-                file_name="commentary.mp3",
-                mime="audio/mpeg"
-            )
-    
-    # Detailed results (expandable)
-    with st.expander("🔍 Detailed Results"):
-        st.json(results)
-
 
 def show_next_page():
     """Show the logo generation page with WHISK/Imagen."""
-    st.title("🎨 Logo Generation")
+    # Apply the same modern styling as main page
+    st.markdown("""
+    <style>
+    /* Modern Sports Theme Styling */
+    @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Bebas+Neue&family=Montserrat:wght@400;500;600;700;800&display=swap');
+    
+    /* Global Styles */
+    .stApp {
+        font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+    }
+    
+    /* Animated background particles */
+    .stApp::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: 
+            radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(255, 100, 0, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 20%, rgba(0, 255, 150, 0.05) 0%, transparent 50%);
+        animation: particleFloat 20s ease-in-out infinite;
+        pointer-events: none;
+        z-index: 0;
+    }
+    
+    @keyframes particleFloat {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(20px, -20px) scale(1.1); }
+    }
+    
+    /* Title Styling */
+    h1 {
+        font-family: 'Oswald', sans-serif !important;
+        font-size: 3rem !important;
+        font-weight: 700 !important;
+        margin-bottom: 0.5rem !important;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #ffffff !important;
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Header Styling */
+    h2 {
+        font-family: 'Oswald', sans-serif !important;
+        font-size: 1.8rem !important;
+        font-weight: 600 !important;
+        color: #ffffff !important;
+        margin-top: 2rem !important;
+        margin-bottom: 1rem !important;
+        position: relative;
+        padding-left: 2.5rem !important;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        animation: fadeInUp 0.6s ease-out 0.2s both;
+    }
+    
+    h2::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 4px;
+        background: linear-gradient(180deg, #8B5CF6 0%, #A78BFA 100%);
+        border-radius: 2px;
+    }
+    
+    /* Subheader */
+    h3 {
+        font-family: 'Oswald', sans-serif !important;
+        font-size: 1.3rem !important;
+        font-weight: 500 !important;
+        color: #d0d0d0 !important;
+        margin-top: 1.5rem !important;
+        margin-bottom: 0.75rem !important;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+    }
+    
+    /* Input Fields */
+    .stTextInput > div > div > input {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        color: #ffffff !important;
+        padding: 1.5rem 1rem !important;
+        min-height: 60px !important;
+        height: 60px !important;
+        transition: all 0.3s ease !important;
+        font-family: 'Montserrat', sans-serif !important;
+        font-size: 1rem !important;
+    }
+    
+    .stTextInput > div {
+        min-height: 60px !important;
+    }
+    
+    .stTextInput > div > div {
+        min-height: 60px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: #8B5CF6 !important;
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2) !important;
+        outline: none !important;
+    }
+    
+    /* File Uploader */
+    [data-testid="stFileUploader"] > div {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 2px dashed rgba(255, 255, 255, 0.2) !important;
+        border-radius: 12px !important;
+        padding: 2rem !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    [data-testid="stFileUploader"] > div:hover {
+        border-color: #8B5CF6 !important;
+        background: rgba(139, 92, 246, 0.05) !important;
+        transform: translateY(-2px);
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 2rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        font-family: 'Montserrat', sans-serif !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3) !important;
+        position: relative;
+        overflow: hidden;
+        max-width: 300px !important;
+        width: auto !important;
+    }
+    
+    .stButton > button::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4) !important;
+    }
+    
+    .stButton > button:hover::before {
+        width: 300px;
+        height: 300px;
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0) !important;
+    }
+    
+    /* Secondary buttons */
+    [data-testid="baseButton-secondary"] {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    }
+    
+    [data-testid="baseButton-secondary"]:hover {
+        background: rgba(255, 255, 255, 0.15) !important;
+        border-color: #8B5CF6 !important;
+    }
+    
+    /* Columns with animation */
+    [data-testid="column"] {
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* Markdown text */
+    .stMarkdown {
+        color: #b0b0b0 !important;
+        font-family: 'Montserrat', sans-serif !important;
+        animation: fadeInUp 0.6s ease-out 0.1s both;
+    }
+    
+    /* Images */
+    .stImage {
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+        transition: transform 0.3s ease !important;
+        animation: fadeInUp 0.6s ease-out 0.3s both;
+    }
+    
+    .stImage:hover {
+        transform: scale(1.02);
+    }
+    
+    /* Video player */
+    video {
+        border-radius: 12px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+        animation: fadeInUp 0.6s ease-out 0.3s both;
+    }
+    
+    /* Divider */
+    hr {
+        border-color: rgba(139, 92, 246, 0.3) !important;
+        margin: 2rem 0 !important;
+    }
+    
+    /* Success/Info messages */
+    .stSuccess, .stInfo {
+        background: rgba(139, 92, 246, 0.1) !important;
+        border-left: 4px solid #8B5CF6 !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* Warning messages */
+    .stWarning {
+        background: rgba(255, 193, 7, 0.1) !important;
+        border-left: 4px solid #ffc107 !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* Error messages */
+    .stError {
+        background: rgba(244, 67, 54, 0.1) !important;
+        border-left: 4px solid #f44336 !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* Expander */
+    [data-testid="stExpander"] {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        margin: 1rem 0 !important;
+    }
+    
+    /* Hide Streamlit default elements */
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header { visibility: hidden; }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.title("Logo Generation")
     st.markdown("Generate a logo using Google's WHISK (Imagen) image generation or upload your own logo.")
     
     # Initialize session state for image generation
@@ -590,7 +1676,7 @@ def show_next_page():
         st.session_state.logo_prompt = ""
     
     # Prompt input
-    st.subheader("📝 Describe Your Logo")
+    st.subheader("Describe Your Logo")
     prompt = st.text_input(
         "Enter a description of the logo you want to generate:",
         value=st.session_state.logo_prompt,
@@ -601,16 +1687,16 @@ def show_next_page():
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        generate_button = st.button("✨ Generate Logo", type="primary", use_container_width=True)
+        generate_button = st.button("Generate Logo", type="primary")
     
     with col2:
-        if st.button("🔄 Reprompt", use_container_width=True):
+        if st.button("Reprompt"):
             st.session_state.generated_images = []
             st.session_state.selected_image = None
             st.rerun()
 
     # Upload a logo instead of generating
-    st.subheader("📤 Upload a Logo")
+    st.subheader("Upload a Logo")
     uploaded_logo = st.file_uploader(
         "Upload a PNG/JPG logo (transparent recommended):",
         type=["png", "jpg", "jpeg"],
@@ -625,19 +1711,19 @@ def show_next_page():
         save_path = upload_dir / f"uploaded_logo_{int(time.time())}.png"
         Image.open(uploaded_logo).convert("RGBA").save(save_path)
         st.session_state.selected_image = {"image_path": str(save_path), "source": "uploaded"}
-        st.success("✅ Logo uploaded and selected")
+        st.success("Logo uploaded and selected")
     
     # Generate images
     if generate_button and prompt:
         st.session_state.logo_prompt = prompt
-        with st.spinner("🎨 Generating logo variations... This may take a moment."):
+        with st.spinner("Generating logo variations... This may take a moment."):
             from utils.image_generator import generate_logo_images
             generated = generate_logo_images(prompt, num_images=3)
             st.session_state.generated_images = generated
     
     # Display generated images
     if st.session_state.generated_images:
-        st.subheader("🖼️ Generated Logo Options")
+        st.subheader("Generated Logo Options")
         st.write("Select one of the generated logos:")
         
         # Filter out None values
@@ -664,17 +1750,17 @@ def show_next_page():
                             
                             if st.button(button_label, key=f"select_{idx}", use_container_width=True, type=button_type):
                                 st.session_state.selected_image = img_data
-                                st.toast(f"✅ Selected Option {idx + 1}!", icon="✅")
+                                st.toast(f"Selected Option {idx + 1}!")
                                 st.rerun()
                         else:
                             st.warning(f"Image {idx + 1} not found")
                     else:
                         st.warning(f"Option {idx + 1} generation failed")
         else:
-            st.error("❌ No images were generated. Please try a different prompt or check your API configuration.")
+            st.error("No images were generated. Please try a different prompt or check your API configuration.")
             
             # Show helpful error information
-            with st.expander("🔧 Troubleshooting"):
+            with st.expander("Troubleshooting"):
                 st.write("**Common issues:**")
                 st.write("1. **Vertex AI API not enabled**: Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Enable 'Vertex AI API'")
                 st.write("2. **Imagen API not available**: Imagen may require special access. Check if it's enabled in your project.")
@@ -686,7 +1772,7 @@ def show_next_page():
                 if GOOGLE_CLOUD_PROJECT:
                     st.write(f"**Current Project ID**: `{GOOGLE_CLOUD_PROJECT}`")
                 else:
-                    st.error("⚠️ `GOOGLE_CLOUD_PROJECT` is not set in your `.env` file")
+                    st.error("`GOOGLE_CLOUD_PROJECT` is not set in your `.env` file")
     
     # Show download button for selected image (small, not large display)
     if st.session_state.selected_image:
@@ -699,7 +1785,7 @@ def show_next_page():
                 st.write("**Selected Logo Ready**")
                 with open(image_path, "rb") as f:
                     st.download_button(
-                        label="📥 Download Selected Logo",
+                        label="Download Selected Logo",
                         data=f.read(),
                         file_name=f"logo_{hash(st.session_state.logo_prompt) % 10000}.png",
                         mime="image/png",
@@ -709,14 +1795,18 @@ def show_next_page():
     
     # Skip only the logo step (continue to intro generation)
     st.divider()
-    if st.button("⏭️ Skip Logo", key="skip_logo", use_container_width=True):
-        st.session_state.skip_logo = True
-        st.toast("Skipped logo step", icon="⏭️")
-        st.rerun()
+    col_text, col_button = st.columns([2, 1])
+    with col_text:
+        st.markdown('<p style="font-family: \'Oswald\', sans-serif; color: #FFFFFF; font-size: 1.6rem; margin: 0; padding-top: 0.5rem; font-weight: 600;">Don\'t want to upload a logo?</p>', unsafe_allow_html=True)
+    with col_button:
+        if st.button("Skip Logo", key="skip_logo"):
+            st.session_state.skip_logo = True
+            st.toast("Skipped logo step")
+            st.rerun()
 
     # Veo Intro Video Generation Section
     st.divider()
-    st.subheader("🎬 Intro Video Generation")
+    st.subheader("Intro Video Generation")
     st.markdown("Generate a 5-second intro video using Veo 3.0")
     
     # Initialize session state for intro video
@@ -747,7 +1837,7 @@ def show_next_page():
     col_text, col_bg = st.columns(2)
     
     with col_text:
-        st.write("**📝 Text to Display**")
+        st.write("**Text to Display**")
         intro_text = st.text_input(
             "Enter text to display on video (centered):",
             value=st.session_state.intro_text or video_summary or "Game Highlights",
@@ -757,7 +1847,7 @@ def show_next_page():
         )
     
     with col_bg:
-        st.write("**🎨 Background Description**")
+        st.write("**Background Description**")
         intro_background = st.text_input(
             "Describe the background style:",
             value=st.session_state.intro_background or "dark blue gradient with animated particles",
@@ -769,10 +1859,10 @@ def show_next_page():
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        generate_video_button = st.button("✨ Generate Intro Video", type="primary", use_container_width=True)
+        generate_video_button = st.button("Generate Intro Video", type="primary")
     
     with col2:
-        if st.button("🔄 Regenerate", use_container_width=True):
+        if st.button("Regenerate"):
             st.session_state.intro_videos = []
             st.session_state.selected_intro_video = None
             st.rerun()
@@ -781,7 +1871,7 @@ def show_next_page():
     if generate_video_button and intro_text and intro_background:
         st.session_state.intro_text = intro_text
         st.session_state.intro_background = intro_background
-        with st.spinner("🎬 Generating intro video with Veo 3.0... This may take a few minutes."):
+        with st.spinner("Generating intro video with Veo 3.0... This may take a few minutes."):
             from utils.veo_generator import generate_intro_video
             
             # Get logo path if selected
@@ -808,7 +1898,7 @@ def show_next_page():
     
     # Display generated intro videos
     if st.session_state.intro_videos:
-        st.subheader("🎥 Generated Intro Video Options")
+        st.subheader("Generated Intro Video Options")
         st.write("Select one of the generated intro videos:")
         
         # Filter out None values
@@ -835,14 +1925,14 @@ def show_next_page():
                             
                             if st.button(button_label, key=f"select_video_{idx}", use_container_width=True, type=button_type):
                                 st.session_state.selected_intro_video = vid_data
-                                st.toast(f"✅ Selected Intro Video {idx + 1}!", icon="✅")
+                                st.toast(f"Selected Intro Video {idx + 1}!")
                                 st.rerun()
                         else:
                             st.warning(f"Video {idx + 1} not found")
                     else:
                         st.warning(f"Option {idx + 1} generation failed")
         else:
-            st.error("❌ No intro videos were generated. Please try again or check your API configuration.")
+            st.error("No intro videos were generated. Please try again or check your API configuration.")
     
     # Show download button for selected intro video
     if st.session_state.selected_intro_video:
@@ -854,7 +1944,7 @@ def show_next_page():
                 st.write("**Selected Intro Video Ready**")
                 with open(video_path, "rb") as f:
                     st.download_button(
-                        label="📥 Download Selected Intro Video",
+                        label="Download Selected Intro Video",
                         data=f.read(),
                         file_name=f"intro_{hash(st.session_state.intro_prompt) % 10000}.mp4",
                         mime="video/mp4",
@@ -865,18 +1955,22 @@ def show_next_page():
     # Continue button (logo optional; allow continue if intro video selected)
     if st.session_state.selected_intro_video:
         st.divider()
-        if st.button("➡️ Continue", type="primary", use_container_width=True):
+        if st.button("Continue", type="primary"):
             # Navigate to final page
             st.session_state.current_page = "final"
             st.rerun()
 
     # Skip intro button: allow users to go straight to final/download/twitter page
     st.divider()
-    if st.button("⏭️ Skip Intro and Go to Final", key="skip_intro_and_final", use_container_width=True):
-        # Keep selected_intro_video as-is (may be None). Final page will handle missing video gracefully.
-        st.session_state.skip_intro = True
-        st.session_state.current_page = "final"
-        st.rerun()
+    col_text_intro, col_button_intro = st.columns([2, 1])
+    with col_text_intro:
+        st.markdown('<p style="font-family: \'Oswald\', sans-serif; color: #FFFFFF; font-size: 1.6rem; margin: 0; padding-top: 0.5rem; font-weight: 600;">Don\'t want to add an intro?</p>', unsafe_allow_html=True)
+    with col_button_intro:
+        if st.button("Skip Intro and Go to Final", key="skip_intro_and_final"):
+            # Keep selected_intro_video as-is (may be None). Final page will handle missing video gracefully.
+            st.session_state.skip_intro = True
+            st.session_state.current_page = "final"
+            st.rerun()
     
     # Back button
     st.divider()
@@ -887,7 +1981,244 @@ def show_next_page():
 
 def show_final_page():
     """Show the final composed video with download and post-to-X options."""
-    st.title("✅ Final Video")
+    # Apply the same modern styling as other pages
+    st.markdown("""
+    <style>
+    /* Modern Sports Theme Styling */
+    @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Bebas+Neue&family=Montserrat:wght@400;500;600;700;800&display=swap');
+    
+    /* Global Styles */
+    .stApp {
+        font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+    }
+    
+    /* Animated background particles */
+    .stApp::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: 
+            radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(255, 100, 0, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 20%, rgba(0, 255, 150, 0.05) 0%, transparent 50%);
+        animation: particleFloat 20s ease-in-out infinite;
+        pointer-events: none;
+        z-index: 0;
+    }
+    
+    @keyframes particleFloat {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(20px, -20px) scale(1.1); }
+    }
+    
+    /* Title Styling */
+    h1 {
+        font-family: 'Oswald', sans-serif !important;
+        font-size: 3rem !important;
+        font-weight: 700 !important;
+        margin-bottom: 0.5rem !important;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #ffffff !important;
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Header Styling */
+    h2 {
+        font-family: 'Oswald', sans-serif !important;
+        font-size: 1.8rem !important;
+        font-weight: 600 !important;
+        color: #ffffff !important;
+        margin-top: 2rem !important;
+        margin-bottom: 1rem !important;
+        position: relative;
+        padding-left: 2.5rem !important;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        animation: fadeInUp 0.6s ease-out 0.2s both;
+    }
+    
+    h2::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 4px;
+        background: linear-gradient(180deg, #8B5CF6 0%, #A78BFA 100%);
+        border-radius: 2px;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 2rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        font-family: 'Montserrat', sans-serif !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3) !important;
+        position: relative;
+        overflow: hidden;
+        max-width: 300px !important;
+        width: auto !important;
+    }
+    
+    .stButton > button::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4) !important;
+    }
+    
+    .stButton > button:hover::before {
+        width: 300px;
+        height: 300px;
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0) !important;
+    }
+    
+    /* Secondary buttons */
+    [data-testid="baseButton-secondary"] {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    }
+    
+    [data-testid="baseButton-secondary"]:hover {
+        background: rgba(255, 255, 255, 0.15) !important;
+        border-color: #8B5CF6 !important;
+    }
+    
+    /* Download button */
+    [data-testid="stDownloadButton"] > button {
+        background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 2rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        font-family: 'Montserrat', sans-serif !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3) !important;
+        animation: fadeInUp 0.6s ease-out 0.3s both;
+    }
+    
+    [data-testid="stDownloadButton"] > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4) !important;
+    }
+    
+    /* Video player */
+    video {
+        border-radius: 12px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+        animation: fadeInUp 0.6s ease-out 0.3s both;
+    }
+    
+    /* Text area */
+    .stTextArea > div > div > textarea {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        color: #ffffff !important;
+        padding: 1rem !important;
+        font-family: 'Montserrat', sans-serif !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stTextArea > div > div > textarea:focus {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: #8B5CF6 !important;
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2) !important;
+        outline: none !important;
+    }
+    
+    /* Markdown text */
+    .stMarkdown {
+        color: #b0b0b0 !important;
+        font-family: 'Montserrat', sans-serif !important;
+        animation: fadeInUp 0.6s ease-out 0.1s both;
+    }
+    
+    /* Success/Info messages */
+    .stSuccess, .stInfo {
+        background: rgba(139, 92, 246, 0.1) !important;
+        border-left: 4px solid #8B5CF6 !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* Error messages */
+    .stError {
+        background: rgba(244, 67, 54, 0.1) !important;
+        border-left: 4px solid #f44336 !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* Warning messages */
+    .stWarning {
+        background: rgba(255, 193, 7, 0.1) !important;
+        border-left: 4px solid #ffc107 !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* Divider */
+    hr {
+        border-color: rgba(139, 92, 246, 0.3) !important;
+        margin: 2rem 0 !important;
+    }
+    
+    /* Columns with animation */
+    [data-testid="column"] {
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    /* Hide Streamlit default elements */
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header { visibility: hidden; }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.title("Final Video")
     st.markdown("Review your final video and post it to X (Twitter) if you want.")
 
     # Navigation: Back to previous screen (Logo/Intro page)
@@ -949,7 +2280,7 @@ def show_final_page():
             st.rerun()
         return
 
-    st.subheader("🎬 Final Video")
+    st.subheader("Final Video")
     # If a logo is selected or uploaded, overlay it bottom-right on a cached output
     overlay_candidate = None
     try:
@@ -973,7 +2304,7 @@ def show_final_page():
     with open(video_path, "rb") as f:
         video_bytes = f.read()
         st.download_button(
-            label="📥 Download Final Video",
+            label="Download Final Video",
             data=video_bytes,
             file_name=video_path.name,
             mime="video/mp4",
@@ -982,7 +2313,7 @@ def show_final_page():
 
     st.markdown("---")
 
-    st.subheader("📣 Post to X (Twitter)")
+    st.subheader("Post to X (Twitter)")
     caption = st.text_area("Caption for X:", value="Check out my new highlights! #ArenaVision")
 
     if st.button("Post to X", key="post_x"):
@@ -1089,7 +2420,7 @@ def show_final_page():
             payload_v11 = {"status": caption, "media_ids": media_id}
             resp2 = oauth.post(post_url_v11, data=payload_v11)
             if resp2.status_code in (200, 201):
-                st.success("✅ Posted to X successfully!")
+                 st.success("Posted to X successfully!")
             else:
                 # If access is limited to subset endpoints (code 453), fall back to v2 tweet creation
                 fallback_to_v2 = False
@@ -1109,7 +2440,7 @@ def show_final_page():
                     payload_v2 = {"text": caption, "media": {"media_ids": [media_id]}}
                     resp3 = oauth.post(post_url_v2, json=payload_v2)
                     if resp3.status_code in (200, 201):
-                        st.success("✅ Posted to X successfully (v2 endpoint)!")
+                         st.success("Posted to X successfully!")
                     else:
                         st.error(f"Failed to post tweet (v2): {resp3.status_code} {resp3.text}")
 
