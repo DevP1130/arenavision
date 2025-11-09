@@ -25,7 +25,12 @@ def apply_editing_instructions(
         Path to edited video
     """
     try:
-        from moviepy import VideoFileClip, concatenate_videoclips
+        # MoviePy 1.0.3 provides editor module; avoid top-level moviepy import for compatibility.
+        try:
+            from moviepy.editor import VideoFileClip, concatenate_videoclips
+        except Exception as imp_err:
+            logger.error(f"MoviePy import failed: {imp_err}")
+            raise
         from config import OUTPUT_DIR, TRANSITION_DURATION
         
         if output_path is None:
@@ -73,7 +78,11 @@ def apply_editing_instructions(
             if trim_start is not None or trim_end is not None:
                 start = trim_start if trim_start is not None else 0
                 end = trim_end if trim_end is not None else edited_clip.duration
-                edited_clip = edited_clip.subclipped(start, end)
+                # MoviePy 2.x uses subclipped; 1.x uses subclip
+                if hasattr(edited_clip, 'subclipped'):
+                    edited_clip = edited_clip.subclipped(start, end)
+                else:
+                    edited_clip = edited_clip.subclip(start, end)
             
             # Write edited video
             edited_clip.write_videofile(
@@ -147,7 +156,11 @@ def apply_editing_instructions(
                 start = max(0, min(start, video_duration))
                 end = max(start + 0.1, min(end, video_duration))
                 
-                clip = source_video.subclipped(start, end)
+                # MoviePy 2.x uses subclipped; 1.x uses subclip
+                if hasattr(source_video, 'subclipped'):
+                    clip = source_video.subclipped(start, end)
+                else:
+                    clip = source_video.subclip(start, end)
                 clips.append(clip)
                 logger.info(f"Extracted segment {original_idx}: {start:.1f}s-{end:.1f}s (duration: {end-start:.1f}s)")
             

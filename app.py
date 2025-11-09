@@ -1,4 +1,4 @@
-"""Streamlit frontend for Game Watcher AI."""
+"""Streamlit frontend for ArenaVision."""
 # Apply Python 3.9 compatibility fix before importing Google Cloud libraries
 import sys
 if sys.version_info < (3, 10):
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Page config
 st.set_page_config(
-    page_title="Game Watcher AI",
+    page_title="ArenaVision",
     page_icon="🎥",
     layout="wide"
 )
@@ -44,16 +44,46 @@ if "current_iteration" not in st.session_state:
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "current_page" not in st.session_state:
-    st.session_state.current_page = "editor"  # "editor" or "next_page"
+    st.session_state.current_page = "editor"  # "editor" -> editing, "next_page" -> logo/intro, "final" -> final output
+if "skip_logo" not in st.session_state:
+    st.session_state.skip_logo = False
+if "skip_intro" not in st.session_state:
+    st.session_state.skip_intro = False
+
+# Sidebar brand/logo (attempt background removal of white)
+def _sidebar_brand_logo():
+    try:
+        from PIL import Image
+        import numpy as np
+        from config import BASE_DIR, TEMP_DIR
+        logo_path = BASE_DIR / "logo.jpeg"
+        if logo_path.exists():
+            img = Image.open(logo_path).convert("RGBA")
+            arr = np.array(img)
+            r, g, b, a = arr.T
+            white_mask = (r > 240) & (g > 240) & (b > 240)
+            arr[..., 3][white_mask] = 0
+            out = Image.fromarray(arr)
+            temp_logo = TEMP_DIR / "brand_logo.png"
+            out.save(temp_logo)
+            st.sidebar.image(str(temp_logo), use_container_width=True)
+        else:
+            st.sidebar.markdown("### ArenaVision")
+    except Exception:
+        st.sidebar.markdown("### ArenaVision")
 
 
 def main():
     """Main Streamlit app."""
-    # Check if we should show the next page
+    # Check if we should show the next/final page
     if st.session_state.get("current_page") == "next_page":
         show_next_page()
         return
-    st.title("🎥 Game Watcher AI")
+    if st.session_state.get("current_page") == "final":
+        show_final_page()
+        return
+    _sidebar_brand_logo()
+    st.title("🎥 ArenaVision")
     st.markdown("**Intelligent sports highlight generation with agentic AI**")
     
     # Sidebar for mode selection
@@ -542,7 +572,7 @@ def display_results(results: dict):
 def show_next_page():
     """Show the logo generation page with WHISK/Imagen."""
     st.title("🎨 Logo Generation")
-    st.markdown("Generate a logo using Google's WHISK (Imagen) image generation")
+    st.markdown("Generate a logo using Google's WHISK (Imagen) image generation or upload your own logo.")
     
     # Initialize session state for image generation
     if "generated_images" not in st.session_state:
@@ -571,6 +601,24 @@ def show_next_page():
             st.session_state.generated_images = []
             st.session_state.selected_image = None
             st.rerun()
+
+    # Upload a logo instead of generating
+    st.subheader("📤 Upload a Logo")
+    uploaded_logo = st.file_uploader(
+        "Upload a PNG/JPG logo (transparent recommended):",
+        type=["png", "jpg", "jpeg"],
+        key="logo_uploader",
+        help="If provided, this will be used instead of generating a logo."
+    )
+    if uploaded_logo is not None:
+        from config import OUTPUT_DIR
+        from PIL import Image
+        upload_dir = OUTPUT_DIR / "generated_images"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        save_path = upload_dir / f"uploaded_logo_{int(time.time())}.png"
+        Image.open(uploaded_logo).convert("RGBA").save(save_path)
+        st.session_state.selected_image = {"image_path": str(save_path), "source": "uploaded"}
+        st.success("✅ Logo uploaded and selected")
     
     # Generate images
     if generate_button and prompt:
@@ -652,6 +700,13 @@ def show_next_page():
                         use_container_width=True
                     )
     
+    # Skip only the logo step (continue to intro generation)
+    st.divider()
+    if st.button("⏭️ Skip Logo", key="skip_logo", use_container_width=True):
+        st.session_state.skip_logo = True
+        st.toast("Skipped logo step", icon="⏭️")
+        st.rerun()
+
     # Veo Intro Video Generation Section
     st.divider()
     st.subheader("🎬 Intro Video Generation")
@@ -800,21 +855,246 @@ def show_next_page():
                         use_container_width=True
                     )
     
-    # Continue button (only show if both logo and intro video are selected)
-    if st.session_state.selected_image and st.session_state.selected_intro_video:
+    # Continue button (logo optional; allow continue if intro video selected)
+    if st.session_state.selected_intro_video:
         st.divider()
         if st.button("➡️ Continue", type="primary", use_container_width=True):
-            # Navigate to next page (for now, just show success)
-            st.success("✅ Logo and Intro Video selected! Ready to proceed.")
-            # TODO: Navigate to next page when implemented
-            # st.session_state.current_page = "final"
-            # st.rerun()
+            # Navigate to final page
+            st.session_state.current_page = "final"
+            st.rerun()
+
+    # Skip intro button: allow users to go straight to final/download/twitter page
+    st.divider()
+    if st.button("⏭️ Skip Intro and Go to Final", key="skip_intro_and_final", use_container_width=True):
+        # Keep selected_intro_video as-is (may be None). Final page will handle missing video gracefully.
+        st.session_state.skip_intro = True
+        st.session_state.current_page = "final"
+        st.rerun()
     
     # Back button
     st.divider()
     if st.button("← Back to Editor"):
         st.session_state.current_page = "editor"
         st.rerun()
+
+
+def show_final_page():
+    """Show the final composed video with download and post-to-X options."""
+    st.title("✅ Final Video")
+    st.markdown("Review your final video and post it to X (Twitter) if you want.")
+
+    # Determine which video to show on the final page.
+    # New priority: latest editor iteration (current or last) -> selected intro video -> pipeline highlight reel
+    video_path = None
+    video_source = None
+
+    # 1) Latest iteration from editor page
+    iterations = st.session_state.get("iterations", [])
+    if iterations and isinstance(iterations, list):
+        # Prefer the currently selected iteration index if valid; otherwise use the last available
+        idx = st.session_state.get("current_iteration", len(iterations) - 1)
+        if not isinstance(idx, int) or idx < 0 or idx >= len(iterations):
+            idx = len(iterations) - 1
+
+        candidate = iterations[idx].get("video_path") if iterations[idx] else None
+        # If the current one doesn't exist on disk, fall back to the most recent existing one
+        if not candidate or not Path(candidate).exists():
+            for it in reversed(iterations):
+                cand = it.get("video_path") if it else None
+                if cand and Path(cand).exists():
+                    candidate = cand
+                    break
+        if candidate and Path(candidate).exists():
+            video_path = Path(candidate)
+            video_source = "iteration"
+
+    # 2) Selected intro video (if no editor iteration is available)
+    if video_path is None:
+        selected = st.session_state.get("selected_intro_video")
+        if selected and "video_path" in selected and Path(selected["video_path"]).exists():
+            video_path = Path(selected["video_path"])
+            video_source = "intro"
+
+    # 3) Pipeline results' highlight reel as last fallback
+    if video_path is None:
+        results = st.session_state.get("results") or {}
+        highlight = results.get("highlight_reel") if results else None
+        if highlight and Path(highlight).exists():
+            video_path = Path(highlight)
+            video_source = "highlight_reel"
+
+    if video_path is None:
+        st.error("Final video not found. Go back and generate or select a video first.")
+        if st.button("← Back to Editor"):
+            st.session_state.current_page = "editor"
+            st.rerun()
+        return
+
+    st.subheader("🎬 Final Video")
+    # If a logo is selected or uploaded, overlay it bottom-right on a cached output
+    overlay_candidate = None
+    try:
+        selected_logo = st.session_state.get("selected_image")
+        if selected_logo and selected_logo.get("image_path") and Path(selected_logo["image_path"]).exists():
+            from utils.video_utils import overlay_logo_on_video
+            overlay_candidate = overlay_logo_on_video(
+                video_path=video_path,
+                logo_path=Path(selected_logo["image_path"]),
+                position=("right", "bottom"),
+                scale=0.15,
+                margin=30,
+            )
+    except Exception:
+        overlay_candidate = None
+
+    st.video(str(overlay_candidate or video_path))
+
+    # Download button
+    with open(video_path, "rb") as f:
+        video_bytes = f.read()
+        st.download_button(
+            label="📥 Download Final Video",
+            data=video_bytes,
+            file_name=video_path.name,
+            mime="video/mp4",
+            key="download_final_video"
+        )
+
+    st.markdown("---")
+
+    st.subheader("📣 Post to X (Twitter)")
+    caption = st.text_area("Caption for X:", value="Check out my new highlights! #ArenaVision")
+
+    if st.button("Post to X", key="post_x"):
+        # Attempt to post using OAuth1 to the Twitter API v1.1 media/upload (chunked) + statuses/update
+        try:
+            from requests_oauthlib import OAuth1Session
+            import mimetypes
+            import time as _time
+            import os
+        except Exception:
+            st.error("Posting requires the 'requests_oauthlib' package. Install it in the venv: `pip install requests_oauthlib`")
+            return
+
+        # Read keys from environment (dotenv loaded in config.py)
+        TW_API_KEY = os.getenv("TWITTER_API_KEY")
+        TW_API_SECRET = os.getenv("TWITTER_API_SECRET")
+        TW_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN")
+        TW_ACCESS_SECRET = os.getenv("TWITTER_ACCESS_SECRET")
+
+        if not all([TW_API_KEY, TW_API_SECRET, TW_ACCESS_TOKEN, TW_ACCESS_SECRET]):
+            st.error("Twitter credentials are missing from environment. Add TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, and TWITTER_ACCESS_SECRET to your .env")
+            return
+
+        # Helper: chunked media upload for videos
+        def twitter_upload_video_chunked(oauth: OAuth1Session, path: Path, media_type: str) -> str:
+            upload_url = "https://upload.twitter.com/1.1/media/upload.json"
+            total_bytes = path.stat().st_size
+
+            # INIT
+            init_data = {
+                "command": "INIT",
+                "total_bytes": str(total_bytes),
+                "media_type": media_type,
+                "media_category": "tweet_video",
+            }
+            init_resp = oauth.post(upload_url, data=init_data)
+            # Twitter can return 200/201 or 202 (accepted) for INIT
+            if init_resp.status_code not in (200, 201, 202):
+                raise RuntimeError(f"INIT failed: {init_resp.status_code} {init_resp.text}")
+            media_id = init_resp.json().get("media_id_string")
+            if not media_id:
+                raise RuntimeError("INIT missing media_id_string")
+
+            # APPEND chunks (5MB recommended)
+            segment_index = 0
+            chunk_size = 5 * 1024 * 1024
+            with open(path, "rb") as f:
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    files = {"media": (path.name, chunk, media_type)}
+                    append_data = {
+                        "command": "APPEND",
+                        "media_id": media_id,
+                        "segment_index": str(segment_index),
+                    }
+                    append_resp = oauth.post(upload_url, data=append_data, files=files)
+                    if append_resp.status_code not in (200, 201, 204):
+                        raise RuntimeError(f"APPEND failed at segment {segment_index}: {append_resp.status_code} {append_resp.text}")
+                    segment_index += 1
+
+            # FINALIZE
+            finalize_resp = oauth.post(upload_url, data={"command": "FINALIZE", "media_id": media_id})
+            # FINALIZE can respond 200/201 or 202 with processing_info
+            if finalize_resp.status_code not in (200, 201, 202):
+                raise RuntimeError(f"FINALIZE failed: {finalize_resp.status_code} {finalize_resp.text}")
+
+            # Poll processing if needed
+            resp_json = finalize_resp.json()
+            processing = resp_json.get("processing_info")
+            while processing and processing.get("state") in ("pending", "in_progress"):
+                check_after = processing.get("check_after_secs", 3)
+                _time.sleep(max(1, int(check_after)))
+                status_resp = oauth.get(upload_url, params={"command": "STATUS", "media_id": media_id})
+                if status_resp.status_code not in (200, 201):
+                    raise RuntimeError(f"STATUS failed: {status_resp.status_code} {status_resp.text}")
+                processing = status_resp.json().get("processing_info")
+                if processing and processing.get("state") == "failed":
+                    err = processing.get("error", {})
+                    code = err.get("code")
+                    name = err.get("name")
+                    msg = err.get("message")
+                    raise RuntimeError(f"Media processing failed: {code} {name} {msg}")
+
+            return media_id
+
+        try:
+            oauth = OAuth1Session(
+                TW_API_KEY,
+                client_secret=TW_API_SECRET,
+                resource_owner_key=TW_ACCESS_TOKEN,
+                resource_owner_secret=TW_ACCESS_SECRET,
+            )
+
+            guessed_type, _ = mimetypes.guess_type(str(video_path))
+            media_type = guessed_type or "video/mp4"
+
+            # Perform chunked upload to support videos and large files
+            media_id = twitter_upload_video_chunked(oauth, video_path, media_type)
+
+            # Create the tweet (try v1.1 first, then fall back to v2 if access limited)
+            post_url_v11 = "https://api.twitter.com/1.1/statuses/update.json"
+            payload_v11 = {"status": caption, "media_ids": media_id}
+            resp2 = oauth.post(post_url_v11, data=payload_v11)
+            if resp2.status_code in (200, 201):
+                st.success("✅ Posted to X successfully!")
+            else:
+                # If access is limited to subset endpoints (code 453), fall back to v2 tweet creation
+                fallback_to_v2 = False
+                try:
+                    err_json = resp2.json()
+                    errs = err_json.get("errors") or []
+                    if errs and isinstance(errs, list) and isinstance(errs[0], dict):
+                        if errs[0].get("code") == 453:
+                            fallback_to_v2 = True
+                except Exception:
+                    pass
+
+                if not fallback_to_v2:
+                    st.error(f"Failed to post tweet (v1.1): {resp2.status_code} {resp2.text}")
+                else:
+                    post_url_v2 = "https://api.twitter.com/2/tweets"
+                    payload_v2 = {"text": caption, "media": {"media_ids": [media_id]}}
+                    resp3 = oauth.post(post_url_v2, json=payload_v2)
+                    if resp3.status_code in (200, 201):
+                        st.success("✅ Posted to X successfully (v2 endpoint)!")
+                    else:
+                        st.error(f"Failed to post tweet (v2): {resp3.status_code} {resp3.text}")
+
+        except Exception as e:
+            st.error(f"Error posting to X: {e}")
 
 
 if __name__ == "__main__":

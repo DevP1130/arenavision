@@ -1,10 +1,11 @@
 """Utility functions for video processing."""
-from typing import List
+from typing import List, Tuple
 from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
 import logging
+from config import OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -94,4 +95,74 @@ def get_video_info(video_path: str) -> dict:
     except Exception as e:
         logger.error(f"Error getting video info: {e}")
         return {}
+
+
+def overlay_logo_on_video(
+    video_path: Path,
+    logo_path: Path,
+    position: Tuple[str, str] = ("right", "bottom"),
+    scale: float = 0.15,
+    margin: int = 30,
+) -> Path:
+    """
+    Overlay a logo image onto a video and return output path. Caches by filename.
+
+    Args:
+        video_path: source video
+        logo_path: image (preferably PNG with alpha)
+        position: (x, y) placement as moviepy positions e.g., ("right","bottom")
+        scale: logo width as a fraction of video width
+        margin: pixels of margin from edges
+
+    Returns:
+        Path to the overlaid output video.
+    """
+    try:
+        # Lazy import to avoid import error crashing the app if moviepy isn't installed
+        from moviepy.editor import VideoFileClip, ImageClip, CompositeVideoClip
+
+        output_dir = OUTPUT_DIR / "generated_videos"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        out_name = f"{video_path.stem}_with_logo_{abs(hash(str(logo_path))) % 100000}.mp4"
+        out_path = output_dir / out_name
+
+        if out_path.exists():
+            return out_path
+
+        with VideoFileClip(str(video_path)) as clip:
+            vw, vh = clip.size
+            logo_img = Image.open(logo_path).convert("RGBA")
+            # scale logo by width
+            target_w = max(1, int(vw * scale))
+            w0, h0 = logo_img.size
+            target_h = int(h0 * (target_w / float(w0)))
+            logo_img = logo_img.resize((target_w, target_h))
+            # save temp png to load as ImageClip
+            temp_logo = output_dir / f"_tmp_logo_{abs(hash(str(logo_path))) % 100000}.png"
+            logo_img.save(temp_logo)
+
+            # Build image clip with duration
+            logo_clip = (ImageClip(str(temp_logo))
+                         .set_duration(clip.duration)
+                         .margin(right=margin, bottom=margin, opacity=0)
+                         .set_pos(position))
+
+            composite = CompositeVideoClip([clip, logo_clip])
+            composite.write_videofile(
+                str(out_path),
+                codec="libx264",
+                audio_codec="aac",
+                fps=clip.fps or 24,
+                preset="medium",
+                threads=2,
+            )
+            # cleanup temp
+            try:
+                temp_logo.unlink(missing_ok=True)
+            except Exception:
+                pass
+        return out_path
+    except Exception as e:
+        logger.error(f"Overlay logo failed: {e}")
+        return video_path
 

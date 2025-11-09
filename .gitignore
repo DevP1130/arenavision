@@ -42,6 +42,22 @@ logs/
 !package.json
 service-account-key.json
 
+# Build artifacts / cache
+*.egg-info/
+.pytest_cache/
+.coverage
+coverage.xml
+
+# Streamlit cache
+.streamlit/
+
+# Node / front-end (future)
+node_modules/
+
+# Large generated media (optional keep)
+outputs/generated_images/
+outputs/generated_videos/
+
 # Jupyter
 .ipynb_checkpoints/
 

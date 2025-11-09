@@ -79,7 +79,7 @@ class EditorAgent(BaseAgent):
         self.log(f"Extracting {len(segments)} segments", "info")
         
         try:
-            from moviepy import VideoFileClip
+            from moviepy.editor import VideoFileClip
             clips = []
             
             source_video = VideoFileClip(video_path)
@@ -97,8 +97,11 @@ class EditorAgent(BaseAgent):
                 if end <= start:
                     end = min(start + 5, video_duration)  # Default 5 second clip
                 
-                # MoviePy 2.x uses subclipped instead of subclip
-                clip = source_video.subclipped(start, end)
+                # Support both MoviePy 1.x (subclip) and 2.x (subclipped)
+                if hasattr(source_video, 'subclipped'):
+                    clip = source_video.subclipped(start, end)
+                else:
+                    clip = source_video.subclip(start, end)
                 clip_path = self.output_dir / f"segment_{i:03d}.mp4"
                 
                 try:
@@ -189,7 +192,7 @@ class EditorAgent(BaseAgent):
         self.log("Compiling highlight reel with crossfade transitions", "info")
         
         try:
-            from moviepy import VideoFileClip, CompositeVideoClip, concatenate_videoclips, ColorClip
+            from moviepy.editor import VideoFileClip, CompositeVideoClip, concatenate_videoclips
             from config import TRANSITION_DURATION
             
             video_clips = [VideoFileClip(str(clip)) for clip in clips]
@@ -303,7 +306,7 @@ class EditorAgent(BaseAgent):
             self.log(f"Error compiling reel with transitions: {e}", "error")
             # Fallback: simple concatenation
             try:
-                from moviepy import VideoFileClip, concatenate_videoclips
+                from moviepy.editor import VideoFileClip, concatenate_videoclips
                 video_clips = [VideoFileClip(str(clip)) for clip in clips]
                 final_reel = concatenate_videoclips(video_clips, method="compose")
                 output_path = self.output_dir / "highlight_reel.mp4"
