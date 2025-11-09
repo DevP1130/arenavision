@@ -233,6 +233,8 @@ class PlannerAgent(BaseAgent):
                 "confidence": event.get("confidence", 0.4),
                 "is_successful": event.get("is_successful", False),
                 "is_highlight": event.get("is_highlight", False),
+                "is_score_change": event.get("is_score_change", False),  # Track score changes
+                "is_close_game": event.get("is_close_game", False),  # Track close game situations
                 "crowd_reaction": event.get("crowd_reaction", 3),  # Default to 3 if not set
                 "has_action": event.get("has_action", True),  # Assume action if event exists
                 "player_visible": event.get("player_visible", False),  # Track if player is visible
@@ -282,41 +284,59 @@ class PlannerAgent(BaseAgent):
         for moment in moments:
             score = moment.get("confidence", 0.5)
             
-            # Prioritize successful plays
-            if moment.get("is_successful", False):
-                score += 0.5  # Big boost for successful plays
+            # PRIORITY 1: Score changes are the MOST important - huge boost
+            is_score_change = moment.get("is_score_change", False) or moment.get("is_successful", False)
+            if is_score_change:
+                score += 1.0  # MASSIVE boost for score changes (was 0.5)
+                self.log(f"Score change detected at {moment.get('timestamp', 0)}s - major boost", "info")
             
-            # Prioritize ending moments (last 30 seconds)
+            # PRIORITY 2: Close game situations get extra boost
+            is_close_game = moment.get("is_close_game", False)
+            if is_close_game:
+                score += 0.6  # Big boost for close game situations
+                self.log(f"Close game situation at {moment.get('timestamp', 0)}s - extra boost", "info")
+            
+            # PRIORITY 3: Score changes in close games = maximum priority
+            if is_score_change and is_close_game:
+                score += 0.5  # Additional boost for score changes in close games
+                self.log(f"Score change in close game at {moment.get('timestamp', 0)}s - MAXIMUM priority", "info")
+            
+            # Prioritize ending moments (last 30 seconds) - especially if score change
             if moment.get("is_ending", False):
-                score += 0.4  # Big boost for ending moments
-                self.log(f"Boosting ending moment at {moment.get('timestamp', 0)}s", "info")
+                if is_score_change:
+                    score += 0.5  # Even bigger boost for ending score changes
+                else:
+                    score += 0.3  # Regular boost for ending moments
+                self.log(f"Ending moment at {moment.get('timestamp', 0)}s", "info")
             
             # Filter out missed shots (but be less strict)
             analysis = moment.get("analysis", "").lower()
-            # Only skip if explicitly marked as missed AND not successful
+            # Only skip if explicitly marked as missed AND not successful AND not a score change
             if any(word in analysis for word in ["missed", "blocked", "failed"]):
-                if not moment.get("is_successful", False) and "missed" in analysis:
+                if not moment.get("is_successful", False) and not is_score_change and "missed" in analysis:
                     # Only skip if it's clearly a miss with low crowd reaction
                     if moment.get("crowd_reaction", 0) < 3:
                         continue  # Skip clearly missed shots with no excitement
                     else:
                         score -= 0.3  # Penalize but don't skip if there's excitement
             
-            # Boost score for specific successful play types
+            # Boost score for specific successful play types (score changes)
             label = moment.get("label", "").lower()
             description = moment.get("description", "").lower()
             
             if any(keyword in label or keyword in description 
-                   for keyword in ["goal", "touchdown", "dunk", "home run", "score", "basket", "made"]):
+                   for keyword in ["goal", "touchdown", "dunk", "home run", "score", "basket", "made", "scored"]):
                 if "miss" not in label and "miss" not in description:
-                    score += 0.3
+                    score += 0.4  # Increased boost for scoring keywords
             
-            # Boost for high crowd reaction
+            # REDUCED: Crowd reaction is less important than score changes
+            # Only use crowd reaction if it's very high, and even then, less weight
             crowd_reaction = moment.get("crowd_reaction", 0)
-            if crowd_reaction >= 7:
-                score += 0.3
-            elif crowd_reaction >= 5:
-                score += 0.1
+            if crowd_reaction >= 8:  # Only very high reactions get boost
+                score += 0.2  # Reduced from 0.3
+            elif crowd_reaction >= 6:
+                score += 0.1  # Reduced from 0.2
+            # Lower crowd reactions don't get boost - score changes are more important
             
             # Be very lenient - include almost all moments
             if score < 0.2:
@@ -389,10 +409,12 @@ class PlannerAgent(BaseAgent):
             # The event_start might be when the ball goes in, but we need to show the setup
             if is_scoring_play:
                 # Always use longer buffer for scoring plays to show the shooter
+                # Ensure we capture the player preparing and shooting
+                # Base is SCORING_PLAY_PRE_BUFFER (6s), add extra for player visibility
                 if moment.get("player_visible", False):
-                    pre_buffer = self.scoring_pre_buffer + 3  # 8 seconds total to show shooter setup
+                    pre_buffer = self.scoring_pre_buffer + 3  # 9 seconds total (6 + 3) to show shooter setup
                 else:
-                    pre_buffer = self.scoring_pre_buffer + 2  # 7 seconds - player might be visible but not detected
+                    pre_buffer = self.scoring_pre_buffer + 2  # 8 seconds (6 + 2) - player might be visible but not detected
                 self.log(f"Extended pre-buffer for scoring play: {pre_buffer}s (to show shooter)", "info")
             else:
                 pre_buffer = self.pre_buffer  # 2 seconds for regular events

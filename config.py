@@ -33,6 +33,6 @@ HIGHLIGHT_MIN_DURATION = 3  # minimum highlight length in seconds
 HIGHLIGHT_MAX_DURATION = 30  # maximum highlight length in seconds
 PRE_EVENT_BUFFER = 2  # seconds before event starts
 POST_EVENT_BUFFER = 5  # seconds after event ends (to show full play completion)
-SCORING_PLAY_PRE_BUFFER = 5  # seconds before scoring play (to show shooter/setup)
-TRANSITION_DURATION = 0.5  # seconds for fade transitions between clips
+SCORING_PLAY_PRE_BUFFER = 6  # seconds before scoring play (to show shooter/setup) - increased to ensure player is visible
+TRANSITION_DURATION = 1.0  # seconds for fade transitions between clips (increased for visibility)
 

@@ -232,13 +232,17 @@ class VisionAgent(BaseAgent):
                 3. Was the shot/goal SUCCESSFUL (made basket, goal scored) or MISSED (ball missed, shot blocked)?
                 4. Can you see a player preparing to shoot/score (player with ball, shooting motion, etc.)?
                 5. Player positions and movements
-                6. Crowd reaction level (0-10) - higher means more excitement
-                7. Is this a highlight-worthy moment? (yes/no)
+                6. Is this a SCORE CHANGE moment? (Did the score change on this play?)
+                7. Does the game appear CLOSE? (Look for scoreboard, tight game situation, late game, etc.)
+                8. Crowd reaction level (0-10) - but this is less important than score changes
                 
                 IMPORTANT: 
+                - Focus heavily on SCORE CHANGES - these are the most important moments
+                - Close game situations (tight score, late in game) are especially important
                 - Only mark as highlight if the shot/goal was SUCCESSFUL
                 - If you see a successful score, also note if you can see the player shooting/scoring
                 - Missed shots should NOT be highlights
+                - Score changes are more important than crowd reaction
                 
                 Respond in this exact JSON format:
                 {
@@ -246,6 +250,8 @@ class VisionAgent(BaseAgent):
                     "action": "shot/goal/tackle/etc",
                     "successful": true/false,
                     "player_visible": true/false,
+                    "score_change": true/false,
+                    "close_game": true/false,
                     "crowd_reaction": 0-10,
                     "is_highlight": true/false
                 }
@@ -258,11 +264,30 @@ class VisionAgent(BaseAgent):
                 is_successful = False
                 is_highlight = False
                 crowd_reaction = 0
+                is_score_change = False
+                is_close_game = False
                 
-                # Check for successful indicators
+                # Check for successful indicators (score changes)
                 if any(word in response_text.lower() for word in ["successful", "made", "scored", "goal", "basket", "point"]):
                     if not any(word in response_text.lower() for word in ["missed", "blocked", "failed", "unsuccessful"]):
                         is_successful = True
+                        # If successful, it's likely a score change
+                        is_score_change = True
+                
+                # Explicitly check for score change mentions
+                if any(phrase in response_text.lower() for phrase in [
+                    "score change", "score changed", "point scored", "goal scored", 
+                    "basket made", "score", "scored", "point"
+                ]):
+                    if "miss" not in response_text.lower() and "block" not in response_text.lower():
+                        is_score_change = True
+                
+                # Check for close game situations
+                if any(phrase in response_text.lower() for phrase in [
+                    "close", "tight", "tied", "close game", "late game", "final", 
+                    "overtime", "crunch time", "clutch", "game on the line"
+                ]):
+                    is_close_game = True
                 
                 # Check if player is visible (for extending segment to show shooter)
                 player_visible = any(word in response_text.lower() for word in [
@@ -273,7 +298,7 @@ class VisionAgent(BaseAgent):
                 if "highlight" in response_text.lower() or "highlight-worthy" in response_text.lower():
                     is_highlight = True
                 
-                # Extract crowd reaction if mentioned
+                # Extract crowd reaction if mentioned (but it's less important now)
                 crowd_match = re.search(r'crowd[_\s]*reaction[:\s]*(\d+)', response_text.lower())
                 if crowd_match:
                     crowd_reaction = int(crowd_match.group(1))
@@ -287,18 +312,26 @@ class VisionAgent(BaseAgent):
                     "shot", "goal", "score", "play", "game", "court", "field"
                 ])
                 
-                # Include if it's a highlight, successful, has crowd reaction, OR has any sports action
-                if is_highlight or is_successful or crowd_reaction >= 3 or has_action:
+                # Include if it's a highlight, successful (score change), has crowd reaction, OR has any sports action
+                # Prioritize score changes heavily
+                if is_highlight or is_successful or is_score_change or crowd_reaction >= 3 or has_action:
                     events.append({
                         "frame_index": frame_idx,
                         "timestamp": timestamp,  # Actual timestamp from video
                         "analysis": response_text,
-                        "is_highlight": is_highlight or is_successful,
+                        "is_highlight": is_highlight or is_successful or is_score_change,
                         "is_successful": is_successful,
+                        "is_score_change": is_score_change,  # Track score changes
+                        "is_close_game": is_close_game,  # Track close game situations
                         "player_visible": player_visible,
                         "crowd_reaction": crowd_reaction,
                         "has_action": has_action,
-                        "confidence": max(crowd_reaction / 10.0, 0.4 if has_action else 0.3)  # Use crowd reaction as confidence
+                        # Boost confidence for score changes and close games
+                        "confidence": max(
+                            (0.7 if is_score_change else 0.4) + (0.2 if is_close_game else 0),
+                            crowd_reaction / 10.0,
+                            0.4 if has_action else 0.3
+                        )
                     })
             
             self.log(f"Gemini Vision detected {len(events)} events", "info")

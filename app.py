@@ -14,6 +14,8 @@ import time
 
 from pipeline import GameWatcherPipeline
 from config import OUTPUT_DIR
+from agents.chatbot_agent import ChatbotAgent
+from utils.video_editor import apply_editing_instructions
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +35,14 @@ if "results" not in st.session_state:
     st.session_state.results = None
 if "processing" not in st.session_state:
     st.session_state.processing = False
+if "chatbot" not in st.session_state:
+    st.session_state.chatbot = ChatbotAgent()
+if "iterations" not in st.session_state:
+    st.session_state.iterations = []  # List of {iteration_num, video_path, instructions, timestamp}
+if "current_iteration" not in st.session_state:
+    st.session_state.current_iteration = 0  # Index in iterations list
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
 
 def main():
@@ -138,6 +148,10 @@ def process_video(input_source: str, mode: str, fast_mode: bool = False):
     """Process video through pipeline."""
     st.session_state.processing = True
     st.session_state.results = None
+    # Reset iterations when processing new video
+    st.session_state.iterations = []
+    st.session_state.current_iteration = 0
+    st.session_state.chat_history = []
     
     with st.spinner(f"Processing {mode} video... This may take a few minutes."):
         try:
@@ -224,7 +238,13 @@ def process_live_stream(stream_url: str, duration: float):
 
 
 def display_results(results: dict):
-    """Display processing results."""
+    """Display processing results with chatbot editing interface."""
+    # Only show if we have a valid highlight reel
+    highlight_reel = results.get("highlight_reel")
+    if not highlight_reel or not Path(highlight_reel).exists():
+        st.warning("No highlight reel available yet. Please process a video first.")
+        return
+    
     st.header("📊 Results")
     
     summary = results.get("summary", {})
@@ -237,31 +257,269 @@ def display_results(results: dict):
     with col3:
         st.metric("Status", "✅ Complete")
     
-    # Highlight reel
-    highlight_reel = results.get("highlight_reel")
-    if highlight_reel and Path(highlight_reel).exists():
-        st.subheader("🎬 Highlight Reel")
-        st.video(highlight_reel)
+    # Initialize iterations with original highlight reel (only once)
+    if highlight_reel and Path(highlight_reel).exists() and len(st.session_state.iterations) == 0:
+        st.session_state.iterations.append({
+            "iteration_num": 0,
+            "video_path": highlight_reel,
+            "instructions": "Original highlight reel",
+            "timestamp": time.time()
+        })
+        st.session_state.current_iteration = 0
+    
+    # Main layout: 2/3 video, 1/3 chatbot
+    col_video, col_chat = st.columns([2, 1])
+    
+    with col_video:
+        st.subheader("🎬 Highlight Reel Editor")
         
-        # Download button
-        with open(highlight_reel, "rb") as f:
-            st.download_button(
-                label="📥 Download Highlight Reel",
-                data=f.read(),
-                file_name="highlight_reel.mp4",
-                mime="video/mp4"
+        # Iteration navigation (slideshow)
+        iterations = st.session_state.iterations
+        if len(iterations) > 1:
+            col_prev, col_info, col_next = st.columns([1, 2, 1])
+            with col_prev:
+                prev_clicked = st.button("◀ Previous", disabled=st.session_state.current_iteration == 0, key="prev_iter")
+                if prev_clicked:
+                    st.session_state.current_iteration = max(0, st.session_state.current_iteration - 1)
+                    st.rerun()
+            with col_info:
+                st.info(f"Iteration {st.session_state.current_iteration + 1} of {len(iterations)}")
+            with col_next:
+                next_clicked = st.button("Next ▶", disabled=st.session_state.current_iteration >= len(iterations) - 1, key="next_iter")
+                if next_clicked:
+                    st.session_state.current_iteration = min(len(iterations) - 1, st.session_state.current_iteration + 1)
+                    st.rerun()
+        
+        # Display current iteration video
+        if iterations and len(iterations) > 0:
+            current_iter = iterations[st.session_state.current_iteration] if st.session_state.current_iteration < len(iterations) else iterations[0]
+            if current_iter and Path(current_iter["video_path"]).exists():
+                st.video(current_iter["video_path"])
+                st.caption(f"**{current_iter['instructions']}**")
+            else:
+                st.warning("Video file not found for current iteration")
+        elif highlight_reel and Path(highlight_reel).exists():
+            st.video(highlight_reel)
+            st.caption("**Original highlight reel**")
+        else:
+            st.warning("No video available")
+        
+        # Download button for current iteration
+        if iterations:
+            current_iter = iterations[st.session_state.current_iteration] if st.session_state.current_iteration < len(iterations) else iterations[0]
+            if current_iter and Path(current_iter["video_path"]).exists():
+                st.subheader("📥 Download")
+                with open(current_iter["video_path"], "rb") as f:
+                    st.download_button(
+                        label=f"📥 Download Current Iteration ({st.session_state.current_iteration + 1})",
+                        data=f.read(),
+                        file_name=f"highlight_reel_iteration_{current_iter['iteration_num']:03d}.mp4",
+                        mime="video/mp4",
+                        key="download_current_iteration"
+                    )
+    
+    with col_chat:
+        st.subheader("🤖 Video Editing Chatbot")
+        
+        # Show video context info
+        with st.expander("📋 Video Context", expanded=False):
+            st.write("**Available Data:**")
+            vision_data = results.get("vision", {})
+            planner_data = results.get("planner", {})
+            st.write(f"- Events: {len(vision_data.get('events', []))}")
+            st.write(f"- Plays: {len(vision_data.get('plays', []))}")
+            st.write(f"- Segments: {len(planner_data.get('segments', []))}")
+            st.write(f"- Commentaries: {len(results.get('commentaries', []))}")
+        
+        # Clip selection for context
+        clips = results.get("clips", [])
+        if clips:
+            st.write("**Select clips as context:**")
+            selected_clips = st.multiselect(
+                "Choose clips to reference:",
+                options=clips,
+                format_func=lambda x: Path(x).name,
+                key="context_clips"
             )
-    
-    # Commentary
-    commentaries = results.get("commentaries", [])
-    if commentaries:
-        st.subheader("🎙️ Commentary")
+        else:
+            selected_clips = []
         
-        for i, commentary in enumerate(commentaries):
-            with st.expander(f"Highlight {i + 1} - {commentary.get('timestamp', 0):.1f}s"):
-                st.write(commentary.get("text", ""))
+        # Chat history display
+        if st.session_state.chat_history:
+            st.write("**Chat History:**")
+            for msg in st.session_state.chat_history[-5:]:  # Show last 5 messages
+                role = msg.get("role", "user")
+                content = msg.get("content", "")[:100]
+                if role == "user":
+                    st.write(f"👤 **You:** {content}...")
+                else:
+                    st.write(f"🤖 **Bot:** {content}...")
+        
+        # Chat input
+        user_message = st.text_area(
+            "Describe how you want to edit the video:",
+            placeholder="e.g., 'Make it faster', 'Remove the first segment', 'Add slow motion to scoring plays'",
+            key="chat_input",
+            height=100
+        )
+        
+        if st.button("✏️ Apply Edit", type="primary"):
+            if user_message:
+                with st.spinner("Processing your request..."):
+                    # Prepare video data for chatbot
+                    vision_data = results.get("vision", {})
+                    planner_data = results.get("planner", {})
+                    video_data = {
+                        "metadata": vision_data.get("metadata", {}),
+                        "events": vision_data.get("events", []),
+                        "plays": vision_data.get("plays", []),
+                        "key_frames": vision_data.get("key_frames", []),
+                        "segments": planner_data.get("segments", []),
+                        "commentaries": results.get("commentaries", [])
+                    }
+                    
+                    # Get editing instructions from chatbot
+                    edit_result = st.session_state.chatbot.process_edit_request(
+                        user_message,
+                        video_data,
+                        selected_clips
+                    )
+                    
+                    if edit_result.get("status") == "success":
+                        instructions = edit_result.get("editing_instructions")
+                        
+                        # Apply editing instructions
+                        # For segment removal/editing, we need the original video, not the highlight reel
+                        # Check if we need to use original video (for segment operations)
+                        action = instructions.get("action", "")
+                        
+                        # Try multiple paths to find original video
+                        original_video_path = (
+                            results.get("vision", {}).get("metadata", {}).get("video_path") or
+                            results.get("input", {}).get("video_path") or
+                            results.get("video_path")
+                        )
+                        
+                        # Use original video if editing segments, otherwise use current iteration
+                        if action == "edit_segment" and original_video_path and Path(original_video_path).exists():
+                            source_video = original_video_path
+                            st.info(f"🔧 Using original video for segment editing: {Path(original_video_path).name}")
+                        else:
+                            source_video = current_iter["video_path"] if current_iter else highlight_reel
+                            if action == "edit_segment":
+                                st.warning(f"⚠️ Could not find original video, using highlight reel instead. Segment removal may not work correctly.")
+                        
+                        if source_video and Path(source_video).exists():
+                            try:
+                                planner_data = results.get("planner", {})
+                                new_video_path = apply_editing_instructions(
+                                    source_video,
+                                    instructions,
+                                    planner_data.get("segments", [])
+                                )
+                                
+                                # Add to iterations
+                                new_iteration = {
+                                    "iteration_num": len(iterations),
+                                    "video_path": new_video_path,
+                                    "instructions": user_message,
+                                    "timestamp": time.time()
+                                }
+                                st.session_state.iterations.append(new_iteration)
+                                st.session_state.current_iteration = len(st.session_state.iterations) - 1
+                                
+                                # Add to chat history
+                                st.session_state.chat_history.append({
+                                    "role": "user",
+                                    "content": user_message
+                                })
+                                st.session_state.chat_history.append({
+                                    "role": "assistant",
+                                    "content": f"Applied: {instructions.get('instructions', 'Edit completed')}"
+                                })
+                                
+                                st.success("✅ Edit applied! View the new iteration above.")
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"Error applying edit: {str(e)}")
+                        else:
+                            st.error("No video available to edit")
+                    elif edit_result.get("status") == "api_key_error":
+                        error_msg = edit_result.get("error", "API key issue")
+                        st.error(f"🔐 {error_msg}")
+                        st.warning("**Action Required:**")
+                        st.markdown("""
+                        1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
+                        2. Delete the old API key (if it shows as leaked)
+                        3. Create a new API key
+                        4. Update your `.env` file with the new key:
+                           ```
+                           GOOGLE_API_KEY=your_new_api_key_here
+                           ```
+                        5. Restart the Streamlit server
+                        """)
+                    elif edit_result.get("status") == "quota_error":
+                        error_msg = edit_result.get("error", "API quota exceeded")
+                        st.error(f"⚠️ {error_msg}")
+                        st.info("💡 **Tip**: The chatbot will automatically retry with a model that has higher quotas. Please wait a moment and try again.")
+                    else:
+                        error_msg = edit_result.get("error", "Unknown error")
+                        st.error(f"Error: {error_msg}")
+                        if "quota" in error_msg.lower() or "429" in error_msg:
+                            st.info("💡 **Tip**: You've hit the API quota limit. The system will try to use a model with higher quotas on the next request.")
+                        elif "403" in error_msg or "leaked" in error_msg.lower() or "api key" in error_msg.lower():
+                            st.warning("🔐 **API Key Issue**: Your API key may have been reported as leaked. Please generate a new one from [Google AI Studio](https://aistudio.google.com/app/apikey)")
+            else:
+                st.warning("Please enter an editing request")
+        
+        # Clear chat button
+        if st.button("🗑️ Clear Chat History"):
+            st.session_state.chat_history = []
+            st.rerun()
     
-    # Commentary audio
+    # Mini clips section (below main layout)
+    clips = results.get("clips", [])
+    commentaries = results.get("commentaries", [])
+    
+    if clips:
+        st.subheader("📹 Individual Video Segments")
+        st.write("View and download individual highlight segments:")
+        
+        # Display clips in a grid
+        num_cols = 3
+        for i in range(0, len(clips), num_cols):
+            cols = st.columns(num_cols)
+            for j, col in enumerate(cols):
+                clip_idx = i + j
+                if clip_idx < len(clips):
+                    clip_path = clips[clip_idx]
+                    with col:
+                        if Path(clip_path).exists():
+                            st.video(clip_path)
+                            clip_name = Path(clip_path).name
+                            
+                            # Show commentary if available
+                            if clip_idx < len(commentaries):
+                                comm = commentaries[clip_idx]
+                                st.caption(f"**Segment {clip_idx + 1}** - {comm.get('text', '')[:60]}...")
+                                st.caption(f"Timestamp: {comm.get('timestamp', 0):.1f}s")
+                            else:
+                                st.caption(f"**Segment {clip_idx + 1}** - {clip_name}")
+                            
+                            # Download button for each clip
+                            with open(clip_path, "rb") as f:
+                                st.download_button(
+                                    label=f"📥 Download Segment {clip_idx + 1}",
+                                    data=f.read(),
+                                    file_name=clip_name,
+                                    mime="video/mp4",
+                                    key=f"download_segment_{clip_idx}"
+                                )
+                        else:
+                            st.warning(f"Clip {clip_idx + 1} not found")
+    
+    # Commentary audio (below clips)
     commentary_audio = results.get("commentary_audio")
     if commentary_audio and Path(commentary_audio).exists():
         st.subheader("🔊 Commentary Audio")

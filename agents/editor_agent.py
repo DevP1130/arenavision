@@ -101,16 +101,29 @@ class EditorAgent(BaseAgent):
                 clip = source_video.subclipped(start, end)
                 clip_path = self.output_dir / f"segment_{i:03d}.mp4"
                 
-                clip.write_videofile(
-                    str(clip_path),
-                    codec='libx264',
-                    audio_codec='aac',
-                    temp_audiofile=str(self.output_dir / f"temp_audio_{i}.m4a"),
-                    remove_temp=True
-                )
-                
-                clips.append(clip_path)
-                self.log(f"Extracted segment {i}: {start}s - {end}s", "info")
+                try:
+                    clip.write_videofile(
+                        str(clip_path),
+                        codec='libx264',
+                        audio_codec='aac',
+                        temp_audiofile=str(self.output_dir / f"temp_audio_{i}.m4a"),
+                        remove_temp=True,
+                        logger=None  # Suppress verbose output
+                    )
+                    clips.append(clip_path)
+                    self.log(f"Extracted segment {i}: {start}s - {end}s", "info")
+                except BrokenPipeError as e:
+                    self.log(f"Broken pipe error extracting segment {i}: {e}", "error")
+                    raise
+                except Exception as e:
+                    self.log(f"Error extracting segment {i}: {e}", "error")
+                    raise
+                finally:
+                    # Always close the clip after writing (even on error)
+                    try:
+                        clip.close()
+                    except Exception:
+                        pass  # Ignore errors during cleanup
             
             source_video.close()
             return clips
@@ -186,106 +199,102 @@ class EditorAgent(BaseAgent):
             
             transition_duration = TRANSITION_DURATION
             
-            # Create smooth crossfade transitions using overlapping clips with opacity masks
+            # Create smooth crossfade transitions using concatenate with negative padding
             if len(video_clips) == 1:
                 final_reel = video_clips[0]
             else:
-                from moviepy import ImageClip
                 import numpy as np
                 
-                composite_clips = []
-                current_time = 0
-                w, h = video_clips[0].size
+                self.log(f"Creating crossfade reel: {len(video_clips)} clips with {transition_duration}s transitions", "info")
                 
+                # Apply fade effects to clips for crossfade
+                faded_clips = []
                 for i, clip in enumerate(video_clips):
-                    try:
-                        clip_duration = clip.duration
-                        
-                        if i == 0:
-                            # First clip: fade out at end
-                            if clip_duration > transition_duration:
-                                # Create fade out effect by modifying frames
-                                def fadeout_transform(get_frame, t):
-                                    frame = get_frame(t)
-                                    if t < clip_duration - transition_duration:
-                                        return frame  # Full opacity
-                                    else:
-                                        # Fade out: blend with black
-                                        opacity = max(0, (clip_duration - t) / transition_duration)
-                                        return (frame * opacity).astype(np.uint8)
-                                
-                                clip = clip.fl(fadeout_transform)
-                            
-                            clip = clip.set_start(current_time)
-                            composite_clips.append(clip)
-                            current_time += clip_duration - transition_duration / 2
-                        
-                        elif i == len(video_clips) - 1:
-                            # Last clip: fade in at start
-                            if clip_duration > transition_duration:
-                                def fadein_transform(get_frame, t):
-                                    frame = get_frame(t)
-                                    if t > transition_duration:
-                                        return frame  # Full opacity
-                                    else:
-                                        # Fade in: blend with black
-                                        opacity = t / transition_duration
-                                        return (frame * opacity).astype(np.uint8)
-                                
-                                clip = clip.fl(fadein_transform)
-                            
-                            # Overlap with previous clip for crossfade
-                            overlap_start = max(0, current_time - transition_duration)
-                            clip = clip.set_start(overlap_start)
-                            composite_clips.append(clip)
-                        
-                        else:
-                            # Middle clips: fade in at start AND fade out at end
-                            if clip_duration > transition_duration * 2:
-                                def fade_both_transform(get_frame, t):
-                                    frame = get_frame(t)
-                                    if t < transition_duration:
-                                        # Fade in
-                                        opacity = t / transition_duration
-                                    elif t > clip_duration - transition_duration:
-                                        # Fade out
-                                        opacity = max(0, (clip_duration - t) / transition_duration)
-                                    else:
-                                        opacity = 1.0
-                                    return (frame * opacity).astype(np.uint8)
-                                
-                                clip = clip.fl(fade_both_transform)
-                            
-                            # Overlap with previous clip for crossfade
-                            overlap_start = max(0, current_time - transition_duration)
-                            clip = clip.set_start(overlap_start)
-                            composite_clips.append(clip)
-                            current_time = overlap_start + clip_duration - transition_duration / 2
+                    clip_duration = clip.duration
                     
-                    except Exception as e:
-                        self.log(f"Fade transition error for clip {i}: {e}, using simple positioning", "warning")
-                        # Fallback: simple sequential with slight overlap
-                        clip = clip.set_start(current_time)
-                        composite_clips.append(clip)
-                        current_time += clip.duration - transition_duration / 2
+                    if i == 0:
+                        # First clip: fade out at end
+                        if clip_duration > transition_duration:
+                            def fadeout(get_frame, t):
+                                frame = get_frame(t)
+                                if t >= clip_duration - transition_duration:
+                                    fade_progress = (t - (clip_duration - transition_duration)) / transition_duration
+                                    opacity = 1.0 - fade_progress
+                                    return (frame * opacity).astype(np.uint8)
+                                return frame
+                            clip = clip.fl(fadeout)
+                        faded_clips.append(clip)
+                    
+                    elif i == len(video_clips) - 1:
+                        # Last clip: fade in at start
+                        if clip_duration > transition_duration:
+                            def fadein(get_frame, t):
+                                frame = get_frame(t)
+                                if t <= transition_duration:
+                                    opacity = t / transition_duration
+                                    return (frame * opacity).astype(np.uint8)
+                                return frame
+                            clip = clip.fl(fadein)
+                        faded_clips.append(clip)
+                    
+                    else:
+                        # Middle clips: fade in at start AND fade out at end
+                        if clip_duration > transition_duration * 2:
+                            def fadeboth(get_frame, t):
+                                frame = get_frame(t)
+                                if t <= transition_duration:
+                                    opacity = t / transition_duration
+                                    return (frame * opacity).astype(np.uint8)
+                                elif t >= clip_duration - transition_duration:
+                                    fade_progress = (t - (clip_duration - transition_duration)) / transition_duration
+                                    opacity = 1.0 - fade_progress
+                                    return (frame * opacity).astype(np.uint8)
+                                return frame
+                            clip = clip.fl(fadeboth)
+                        faded_clips.append(clip)
                 
-                # Create composite video with all overlapping faded clips
-                total_duration = max((c.start if hasattr(c, 'start') else 0) + c.duration for c in composite_clips)
-                final_reel = CompositeVideoClip(composite_clips, size=(w, h))
-                final_reel = final_reel.subclipped(0, total_duration)
+                # Concatenate with negative padding to create overlap for crossfade
+                # Negative padding makes clips overlap by transition_duration
+                final_reel = concatenate_videoclips(faded_clips, method="compose", padding=-transition_duration)
+                self.log(f"Final reel created with {transition_duration}s crossfade transitions", "info")
             output_path = self.output_dir / "highlight_reel.mp4"
             
-            final_reel.write_videofile(
-                str(output_path),
-                codec='libx264',
-                audio_codec='aac',
-                fps=30
-            )
+            try:
+                final_reel.write_videofile(
+                    str(output_path),
+                    codec='libx264',
+                    audio_codec='aac',
+                    fps=30,
+                    logger=None  # Suppress verbose output
+                )
+            except BrokenPipeError as e:
+                self.log(f"Broken pipe error during video write: {e}", "error")
+                # Try to cleanup before re-raising
+                try:
+                    for clip in video_clips:
+                        clip.close()
+                    final_reel.close()
+                except:
+                    pass
+                raise
+            except Exception as e:
+                self.log(f"Error writing video file: {e}", "error")
+                # Cleanup on any error
+                try:
+                    for clip in video_clips:
+                        clip.close()
+                    final_reel.close()
+                except:
+                    pass
+                raise
             
             # Cleanup
-            for clip in video_clips:
-                clip.close()
-            final_reel.close()
+            try:
+                for clip in video_clips:
+                    clip.close()
+                final_reel.close()
+            except Exception as cleanup_error:
+                self.log(f"Error during cleanup: {cleanup_error}", "warning")
             
             self.log(f"Highlight reel with transitions saved to {output_path}", "info")
             return output_path
@@ -298,10 +307,30 @@ class EditorAgent(BaseAgent):
                 video_clips = [VideoFileClip(str(clip)) for clip in clips]
                 final_reel = concatenate_videoclips(video_clips, method="compose")
                 output_path = self.output_dir / "highlight_reel.mp4"
-                final_reel.write_videofile(str(output_path), codec='libx264', audio_codec='aac', fps=30)
-                for clip in video_clips:
-                    clip.close()
-                final_reel.close()
+                try:
+                    final_reel.write_videofile(
+                        str(output_path), 
+                        codec='libx264', 
+                        audio_codec='aac', 
+                        fps=30,
+                        logger=None  # Suppress verbose output
+                    )
+                except BrokenPipeError as e:
+                    self.log(f"Broken pipe error in fallback: {e}", "error")
+                    try:
+                        for clip in video_clips:
+                            clip.close()
+                        final_reel.close()
+                    except:
+                        pass
+                    raise
+                finally:
+                    try:
+                        for clip in video_clips:
+                            clip.close()
+                        final_reel.close()
+                    except Exception as cleanup_error:
+                        self.log(f"Error during fallback cleanup: {cleanup_error}", "warning")
                 self.log("Created reel without transitions (fallback)", "warning")
                 return output_path
             except Exception as e2:

@@ -140,8 +140,11 @@ class GameWatcherPipeline:
             results.update({
                 "status": "complete",
                 "highlight_reel": editor_result.get("highlight_reel"),
+                "clips": editor_result.get("clips", []),  # Individual segment clips
                 "commentary_audio": commentary_result.get("audio_file"),
                 "commentaries": commentary_result.get("commentaries", []),
+                "vision": vision_result,  # Include full vision results for chatbot
+                "planner": planner_result,  # Include full planner results for chatbot
                 "summary": {
                     "highlights_found": len(planner_result.get("segments", [])),
                     "total_duration": planner_result.get("plan", {}).get("total_duration", 0),
