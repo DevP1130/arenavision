@@ -23,23 +23,16 @@ Watch the full demonstration: [ArenaVision Demo](https://www.youtube.com/watch?v
 ## 🖼️ Screenshots
 
 ### Main Interface - Video Input & Processing
-![Main Interface](./screencapture-localhost-8501-2025-11-09-11_13_39.png)
-*Primary screen showing video input options and processing controls*
-
-### Individual Video Segments
-![Video Segments](./screencapture-localhost-8501-2025-11-09-11_15_47.png)
-*View and download individual highlight segments with descriptions and timestamps*
-
-### Interactive Video Editor
-![Video Editor](./screencapture-localhost-8501-2025-11-09-11_11_32.png)
-*Iterative editing with chatbot assistance — remove segments, trim clips, and refine highlights*
+![Main Interface](./screencapture-localhost-8501-2025-11-09-11_11_32.png)
+*Primary screen showing video input options and processing controls. View and download individual highlight segments with descriptions and timestamps. Iterative editing with chatbot assistance — remove segments, trim clips, and refine highlight.
+*
 
 ### Logo & Intro Video Generation
-![Logo & Intro](https://via.placeholder.com/800x600/1a1a2e/ffffff?text=Logo+and+Intro+Generation)
+![Logo & Intro](./screencapture-localhost-8501-2025-11-09-11_13_39.png)
 *Generate custom logos using Imagen 3 and create intro videos with Veo 3.1*
 
 ### Final Video & Social Sharing
-![Final Video](https://via.placeholder.com/800x600/1a1a2e/ffffff?text=Final+Video+and+Sharing)
+![Final Video](./screencapture-localhost-8501-2025-11-09-11_15_47.png)
 *Review final highlight reel, download, and post directly to X (Twitter)*
 
 ## 🏗️ Architecture
