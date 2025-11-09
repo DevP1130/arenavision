@@ -89,30 +89,9 @@ def main():
         show_final_page()
         return
     _sidebar_brand_logo()
-    # Header with top-left logo and title on first page
-    try:
-        from config import BASE_DIR, TEMP_DIR
-        logo_file = None
-        processed = (TEMP_DIR / "brand_logo.png")
-        if processed.exists():
-            logo_file = processed
-        else:
-            raw_logo = BASE_DIR / "logo.jpeg"
-            if raw_logo.exists():
-                logo_file = raw_logo
-        if logo_file is not None:
-            col_logo, col_title = st.columns([1, 8])
-            with col_logo:
-                st.image(str(logo_file), use_container_width=True)
-            with col_title:
-                st.title("🎥 ArenaVision")
-                st.markdown("**Intelligent sports highlight generation with agentic AI**")
-        else:
-            st.title("🎥 ArenaVision")
-            st.markdown("**Intelligent sports highlight generation with agentic AI**")
-    except Exception:
-        st.title("🎥 ArenaVision")
-        st.markdown("**Intelligent sports highlight generation with agentic AI**")
+    # Plain title and subtitle (logo removed from header)
+    st.title("🎥 ArenaVision")
+    st.markdown("**Intelligent sports highlight generation with agentic AI**")
     
     # Sidebar for mode selection
     st.sidebar.header("⚙️ Input Mode")
