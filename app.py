@@ -52,25 +52,31 @@ if "skip_intro" not in st.session_state:
 
 # Sidebar brand/logo (attempt background removal of white)
 def _sidebar_brand_logo():
+    """Render the brand logo in the sidebar, falling back to text if missing.
+
+    Tries to remove white background when PIL/NumPy available; otherwise shows raw logo.
+    """
+    from config import BASE_DIR, TEMP_DIR
+    logo_path = BASE_DIR / "logo.jpeg"
+    if not logo_path.exists():
+        st.sidebar.markdown("### ArenaVision")
+        return
+
+    # Try to show logo with background removal; if that fails, show raw image.
     try:
         from PIL import Image
         import numpy as np
-        from config import BASE_DIR, TEMP_DIR
-        logo_path = BASE_DIR / "logo.jpeg"
-        if logo_path.exists():
-            img = Image.open(logo_path).convert("RGBA")
-            arr = np.array(img)
-            r, g, b, a = arr.T
-            white_mask = (r > 240) & (g > 240) & (b > 240)
-            arr[..., 3][white_mask] = 0
-            out = Image.fromarray(arr)
-            temp_logo = TEMP_DIR / "brand_logo.png"
-            out.save(temp_logo)
-            st.sidebar.image(str(temp_logo), use_container_width=True)
-        else:
-            st.sidebar.markdown("### ArenaVision")
+        img = Image.open(logo_path).convert("RGBA")
+        arr = np.array(img)
+        r, g, b, a = arr.T
+        white_mask = (r > 240) & (g > 240) & (b > 240)
+        arr[..., 3][white_mask] = 0
+        out = Image.fromarray(arr)
+        temp_logo = TEMP_DIR / "brand_logo.png"
+        out.save(temp_logo)
+        st.sidebar.image(str(temp_logo), use_container_width=True)
     except Exception:
-        st.sidebar.markdown("### ArenaVision")
+        st.sidebar.image(str(logo_path), use_container_width=True)
 
 
 def main():
@@ -83,8 +89,30 @@ def main():
         show_final_page()
         return
     _sidebar_brand_logo()
-    st.title("🎥 ArenaVision")
-    st.markdown("**Intelligent sports highlight generation with agentic AI**")
+    # Header with top-left logo and title on first page
+    try:
+        from config import BASE_DIR, TEMP_DIR
+        logo_file = None
+        processed = (TEMP_DIR / "brand_logo.png")
+        if processed.exists():
+            logo_file = processed
+        else:
+            raw_logo = BASE_DIR / "logo.jpeg"
+            if raw_logo.exists():
+                logo_file = raw_logo
+        if logo_file is not None:
+            col_logo, col_title = st.columns([1, 8])
+            with col_logo:
+                st.image(str(logo_file), use_container_width=True)
+            with col_title:
+                st.title("🎥 ArenaVision")
+                st.markdown("**Intelligent sports highlight generation with agentic AI**")
+        else:
+            st.title("🎥 ArenaVision")
+            st.markdown("**Intelligent sports highlight generation with agentic AI**")
+    except Exception:
+        st.title("🎥 ArenaVision")
+        st.markdown("**Intelligent sports highlight generation with agentic AI**")
     
     # Sidebar for mode selection
     st.sidebar.header("⚙️ Input Mode")
