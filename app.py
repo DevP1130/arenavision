@@ -540,11 +540,278 @@ def display_results(results: dict):
 
 
 def show_next_page():
-    """Show the next page (empty for now)."""
-    st.title("Next Page")
-    st.write("This page is empty for now.")
+    """Show the logo generation page with WHISK/Imagen."""
+    st.title("🎨 Logo Generation")
+    st.markdown("Generate a logo using Google's WHISK (Imagen) image generation")
     
-    # Back button to return to editor
+    # Initialize session state for image generation
+    if "generated_images" not in st.session_state:
+        st.session_state.generated_images = []
+    if "selected_image" not in st.session_state:
+        st.session_state.selected_image = None
+    if "logo_prompt" not in st.session_state:
+        st.session_state.logo_prompt = ""
+    
+    # Prompt input
+    st.subheader("📝 Describe Your Logo")
+    prompt = st.text_input(
+        "Enter a description of the logo you want to generate:",
+        value=st.session_state.logo_prompt,
+        placeholder="e.g., 'A modern basketball logo with a basketball and lightning bolt, blue and orange colors, minimalist design'",
+        key="logo_prompt_input"
+    )
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        generate_button = st.button("✨ Generate Logo", type="primary", use_container_width=True)
+    
+    with col2:
+        if st.button("🔄 Reprompt", use_container_width=True):
+            st.session_state.generated_images = []
+            st.session_state.selected_image = None
+            st.rerun()
+    
+    # Generate images
+    if generate_button and prompt:
+        st.session_state.logo_prompt = prompt
+        with st.spinner("🎨 Generating logo variations... This may take a moment."):
+            from utils.image_generator import generate_logo_images
+            generated = generate_logo_images(prompt, num_images=3)
+            st.session_state.generated_images = generated
+    
+    # Display generated images
+    if st.session_state.generated_images:
+        st.subheader("🖼️ Generated Logo Options")
+        st.write("Select one of the generated logos:")
+        
+        # Filter out None values
+        valid_images = [img for img in st.session_state.generated_images if img is not None]
+        
+        if valid_images:
+            # Display images in 3 columns
+            cols = st.columns(3)
+            
+            for idx, img_data in enumerate(valid_images[:3]):
+                with cols[idx]:
+                    if img_data and "image_path" in img_data:
+                        image_path = Path(img_data["image_path"])
+                        if image_path.exists():
+                            st.image(str(image_path), caption=f"Option {idx + 1}", use_container_width=True)
+                            
+                            # Check if this image is selected
+                            is_selected = (st.session_state.selected_image and 
+                                         st.session_state.selected_image.get("index") == img_data.get("index"))
+                            
+                            # Selection button with green color if selected
+                            button_label = f"✓ Selected" if is_selected else f"Select Option {idx + 1}"
+                            button_type = "primary" if is_selected else "secondary"
+                            
+                            if st.button(button_label, key=f"select_{idx}", use_container_width=True, type=button_type):
+                                st.session_state.selected_image = img_data
+                                st.toast(f"✅ Selected Option {idx + 1}!", icon="✅")
+                                st.rerun()
+                        else:
+                            st.warning(f"Image {idx + 1} not found")
+                    else:
+                        st.warning(f"Option {idx + 1} generation failed")
+        else:
+            st.error("❌ No images were generated. Please try a different prompt or check your API configuration.")
+            
+            # Show helpful error information
+            with st.expander("🔧 Troubleshooting"):
+                st.write("**Common issues:**")
+                st.write("1. **Vertex AI API not enabled**: Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Enable 'Vertex AI API'")
+                st.write("2. **Imagen API not available**: Imagen may require special access. Check if it's enabled in your project.")
+                st.write("3. **Service account permissions**: Ensure your service account has 'Vertex AI User' role")
+                st.write("4. **Billing enabled**: Imagen may require billing to be enabled on your Google Cloud project")
+                st.write("5. **Project ID**: Check that `GOOGLE_CLOUD_PROJECT` in your `.env` file is correct")
+                
+                from config import GOOGLE_CLOUD_PROJECT
+                if GOOGLE_CLOUD_PROJECT:
+                    st.write(f"**Current Project ID**: `{GOOGLE_CLOUD_PROJECT}`")
+                else:
+                    st.error("⚠️ `GOOGLE_CLOUD_PROJECT` is not set in your `.env` file")
+    
+    # Show download button for selected image (small, not large display)
+    if st.session_state.selected_image:
+        selected = st.session_state.selected_image
+        if selected and "image_path" in selected:
+            image_path = Path(selected["image_path"])
+            if image_path.exists():
+                # Small download section
+                st.divider()
+                st.write("**Selected Logo Ready**")
+                with open(image_path, "rb") as f:
+                    st.download_button(
+                        label="📥 Download Selected Logo",
+                        data=f.read(),
+                        file_name=f"logo_{hash(st.session_state.logo_prompt) % 10000}.png",
+                        mime="image/png",
+                        key="download_logo",
+                        use_container_width=True
+                    )
+    
+    # Veo Intro Video Generation Section
+    st.divider()
+    st.subheader("🎬 Intro Video Generation")
+    st.markdown("Generate a 5-second intro video using Veo 3.0")
+    
+    # Initialize session state for intro video
+    if "intro_videos" not in st.session_state:
+        st.session_state.intro_videos = []
+    if "selected_intro_video" not in st.session_state:
+        st.session_state.selected_intro_video = None
+    if "intro_text" not in st.session_state:
+        st.session_state.intro_text = ""
+    if "intro_background" not in st.session_state:
+        st.session_state.intro_background = ""
+    
+    # Get video summary from results for default text
+    video_summary = ""
+    if st.session_state.results:
+        # Try to get summary from commentator's narration
+        commentary = st.session_state.results.get("commentary", {})
+        if commentary and commentary.get("overall_narration"):
+            video_summary = commentary.get("overall_narration", "")
+        # Fallback: create summary from highlights
+        elif st.session_state.results.get("summary"):
+            summary = st.session_state.results.get("summary", {})
+            highlights = summary.get("highlights_found", 0)
+            duration = summary.get("total_duration", 0)
+            video_summary = f"Watch the top {highlights} highlights from this {duration:.0f} second game!"
+    
+    # Two separate inputs
+    col_text, col_bg = st.columns(2)
+    
+    with col_text:
+        st.write("**📝 Text to Display**")
+        intro_text = st.text_input(
+            "Enter text to display on video (centered):",
+            value=st.session_state.intro_text or video_summary or "Game Highlights",
+            placeholder="e.g., 'Game Highlights' or 'Top Plays'",
+            key="intro_text_input",
+            help="This text will be centered on the video"
+        )
+    
+    with col_bg:
+        st.write("**🎨 Background Description**")
+        intro_background = st.text_input(
+            "Describe the background style:",
+            value=st.session_state.intro_background or "dark blue gradient with animated particles",
+            placeholder="e.g., 'dark blue gradient', 'bright energetic', 'red fire theme'",
+            key="intro_background_input",
+            help="Describe the visual style of the background (colors, theme, effects)"
+        )
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        generate_video_button = st.button("✨ Generate Intro Video", type="primary", use_container_width=True)
+    
+    with col2:
+        if st.button("🔄 Regenerate", use_container_width=True):
+            st.session_state.intro_videos = []
+            st.session_state.selected_intro_video = None
+            st.rerun()
+    
+    # Generate intro videos
+    if generate_video_button and intro_text and intro_background:
+        st.session_state.intro_text = intro_text
+        st.session_state.intro_background = intro_background
+        with st.spinner("🎬 Generating intro video with Veo 3.0... This may take a few minutes."):
+            from utils.veo_generator import generate_intro_video
+            
+            # Get logo path if selected
+            logo_path = None
+            if st.session_state.selected_image and st.session_state.selected_image.get("image_path"):
+                logo_path = st.session_state.selected_image.get("image_path")
+            
+            # Generate 3 variations
+            generated_videos = []
+            for i in range(3):
+                video_result = generate_intro_video(
+                    text=intro_text,
+                    background_description=intro_background,
+                    max_duration=5,
+                    logo_path=logo_path
+                )
+                if video_result:
+                    video_result["index"] = i
+                    generated_videos.append(video_result)
+                else:
+                    generated_videos.append(None)
+            
+            st.session_state.intro_videos = generated_videos
+    
+    # Display generated intro videos
+    if st.session_state.intro_videos:
+        st.subheader("🎥 Generated Intro Video Options")
+        st.write("Select one of the generated intro videos:")
+        
+        # Filter out None values
+        valid_videos = [vid for vid in st.session_state.intro_videos if vid is not None]
+        
+        if valid_videos:
+            # Display videos in 3 columns
+            cols = st.columns(3)
+            
+            for idx, vid_data in enumerate(valid_videos[:3]):
+                with cols[idx]:
+                    if vid_data and "video_path" in vid_data:
+                        video_path = Path(vid_data["video_path"])
+                        if video_path.exists():
+                            st.video(str(video_path))
+                            
+                            # Check if this video is selected
+                            is_selected = (st.session_state.selected_intro_video and 
+                                         st.session_state.selected_intro_video.get("index") == vid_data.get("index"))
+                            
+                            # Selection button with green color if selected
+                            button_label = f"✓ Selected" if is_selected else f"Select Option {idx + 1}"
+                            button_type = "primary" if is_selected else "secondary"
+                            
+                            if st.button(button_label, key=f"select_video_{idx}", use_container_width=True, type=button_type):
+                                st.session_state.selected_intro_video = vid_data
+                                st.toast(f"✅ Selected Intro Video {idx + 1}!", icon="✅")
+                                st.rerun()
+                        else:
+                            st.warning(f"Video {idx + 1} not found")
+                    else:
+                        st.warning(f"Option {idx + 1} generation failed")
+        else:
+            st.error("❌ No intro videos were generated. Please try again or check your API configuration.")
+    
+    # Show download button for selected intro video
+    if st.session_state.selected_intro_video:
+        selected = st.session_state.selected_intro_video
+        if selected and "video_path" in selected:
+            video_path = Path(selected["video_path"])
+            if video_path.exists():
+                st.divider()
+                st.write("**Selected Intro Video Ready**")
+                with open(video_path, "rb") as f:
+                    st.download_button(
+                        label="📥 Download Selected Intro Video",
+                        data=f.read(),
+                        file_name=f"intro_{hash(st.session_state.intro_prompt) % 10000}.mp4",
+                        mime="video/mp4",
+                        key="download_intro_video",
+                        use_container_width=True
+                    )
+    
+    # Continue button (only show if both logo and intro video are selected)
+    if st.session_state.selected_image and st.session_state.selected_intro_video:
+        st.divider()
+        if st.button("➡️ Continue", type="primary", use_container_width=True):
+            # Navigate to next page (for now, just show success)
+            st.success("✅ Logo and Intro Video selected! Ready to proceed.")
+            # TODO: Navigate to next page when implemented
+            # st.session_state.current_page = "final"
+            # st.rerun()
+    
+    # Back button
+    st.divider()
     if st.button("← Back to Editor"):
         st.session_state.current_page = "editor"
         st.rerun()
